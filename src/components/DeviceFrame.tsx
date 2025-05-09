@@ -35,29 +35,128 @@ const DeviceFrame = ({
     // Device-specific styles
     switch (deviceType) {
       case 'iphone-pro':
-        // iPhone Pro with titanium finish, dynamic island, and realistic details
+        // iPhone 15 Pro with titanium finish, dynamic island, and realistic details
         return {
           container: `${baseStyles} ${shadowStyle} ${transform} ${orientation === 'portrait' ? 'w-[280px] h-[570px]' : 'w-[570px] h-[280px]'}`,
-          frame: `absolute inset-0 rounded-[40px] ${deviceColor === 'black' ? 'bg-neutral-800' : deviceColor === 'white' ? 'bg-neutral-200' : deviceColor === 'titanium' ? 'bg-gradient-to-b from-neutral-400 to-neutral-300' : 'bg-neutral-100'} 
-                  border border-opacity-10 ${deviceColor === 'black' ? 'border-white/10' : 'border-black/10'} 
-                  before:absolute before:inset-0 before:rounded-[40px] before:opacity-30 before:bg-gradient-to-br before:from-white/20 before:to-transparent`,
-          screen: `absolute ${orientation === 'portrait' ? 'top-12 bottom-12 left-3 right-3' : 'top-3 bottom-3 left-12 right-12'} bg-gray-800 rounded-3xl overflow-hidden
-                   shadow-inner border border-gray-700`,
-          notch: `absolute ${orientation === 'portrait' ? 'top-5 left-1/2 -translate-x-1/2 w-[75px] h-[11px]' : 'top-1/2 left-5 -translate-y-1/2 w-[11px] h-[75px]'} bg-black rounded-full z-10
-                  flex items-center justify-center`,
+          frame: `absolute inset-0 rounded-[40px] ${
+            deviceColor === 'black-titanium' 
+              ? 'bg-gradient-to-b from-zinc-800 to-zinc-900 before:opacity-10' 
+              : deviceColor === 'white-titanium' 
+                ? 'bg-gradient-to-b from-gray-100 to-gray-200 before:opacity-20' 
+                : deviceColor === 'blue-titanium' 
+                  ? 'bg-gradient-to-b from-blue-300 via-blue-400 to-blue-300 before:opacity-30' 
+                  : deviceColor === 'titanium' 
+                    ? 'bg-gradient-to-b from-neutral-400 via-neutral-500 to-neutral-400 before:opacity-30'
+                    : deviceColor === 'black'
+                      ? 'bg-gradient-to-b from-zinc-800 to-zinc-900 before:opacity-10'
+                      : deviceColor === 'white'
+                        ? 'bg-gradient-to-b from-gray-100 to-gray-200 before:opacity-20'
+                        : 'bg-gradient-to-b from-amber-100 to-amber-200 before:opacity-30'
+            } 
+            border border-opacity-20 ${deviceColor.includes('black') ? 'border-white/5' : 'border-black/10'} 
+            before:absolute before:inset-0 before:rounded-[40px] before:bg-gradient-to-br before:from-white/30 before:to-transparent
+            after:absolute after:inset-0 after:rounded-[40px] after:opacity-50 after:bg-gradient-to-tr after:via-transparent after:from-transparent after:to-white/10`,
+          screen: `absolute ${orientation === 'portrait' ? 'top-12 bottom-12 left-3 right-3' : 'top-3 bottom-3 left-12 right-12'} 
+                   bg-black rounded-3xl overflow-hidden
+                   shadow-inner border border-gray-900
+                   before:absolute before:inset-0 before:bg-gradient-to-br before:from-gray-800/20 before:to-transparent before:opacity-30`,
+          dynamicIsland: `absolute ${orientation === 'portrait' ? 'top-[18px] left-1/2 -translate-x-1/2 w-[120px] h-[35px]' : 'top-1/2 left-[18px] -translate-y-1/2 h-[120px] w-[35px]'} 
+                         bg-black rounded-[20px] z-20
+                         flex items-center justify-center
+                         before:absolute before:w-3 before:h-3 before:rounded-full before:right-6 before:bg-gray-800/50
+                         after:absolute after:w-2 after:h-2 after:rounded-full after:left-10 after:bg-gray-800/30`,
           buttons: [
-            `absolute ${orientation === 'portrait' ? 'right-[-2px] top-28 h-10 w-1' : 'top-[-2px] left-28 w-10 h-1'} ${deviceColor === 'titanium' ? 'bg-neutral-400' : 'bg-gray-600'} rounded-l-sm`,
-            `absolute ${orientation === 'portrait' ? 'left-[-2px] top-28 h-14 w-1' : 'bottom-[-2px] left-28 w-14 h-1'} ${deviceColor === 'titanium' ? 'bg-neutral-400' : 'bg-gray-600'} rounded-r-sm`,
-            `absolute ${orientation === 'portrait' ? 'left-[-2px] top-48 h-14 w-1' : 'bottom-[-2px] left-48 w-14 h-1'} ${deviceColor === 'titanium' ? 'bg-neutral-400' : 'bg-gray-600'} rounded-r-sm`
+            `absolute ${orientation === 'portrait' ? 'right-[-2px] top-[130px] h-[65px] w-[3px]' : 'top-[-2px] right-[130px] w-[65px] h-[3px]'} ${
+              deviceColor.includes('titanium') 
+                ? deviceColor === 'black-titanium' 
+                  ? 'bg-zinc-700' 
+                  : deviceColor === 'white-titanium' 
+                    ? 'bg-gray-300' 
+                    : deviceColor === 'blue-titanium' 
+                      ? 'bg-blue-400' 
+                      : 'bg-neutral-500'
+                : deviceColor === 'black' 
+                  ? 'bg-zinc-700' 
+                  : 'bg-neutral-400'
+            } rounded-l-sm`,
+            `absolute ${orientation === 'portrait' ? 'left-[-2px] top-[110px] h-[40px] w-[3px]' : 'bottom-[-2px] left-[110px] w-[40px] h-[3px]'} ${
+              deviceColor.includes('titanium') 
+                ? deviceColor === 'black-titanium' 
+                  ? 'bg-zinc-700' 
+                  : deviceColor === 'white-titanium' 
+                    ? 'bg-gray-300' 
+                    : deviceColor === 'blue-titanium' 
+                      ? 'bg-blue-400' 
+                      : 'bg-neutral-500'
+                : deviceColor === 'black' 
+                  ? 'bg-zinc-700' 
+                  : 'bg-neutral-400'
+            } rounded-r-sm`,
+            `absolute ${orientation === 'portrait' ? 'left-[-2px] top-[170px] h-[40px] w-[3px]' : 'bottom-[-2px] left-[170px] w-[40px] h-[3px]'} ${
+              deviceColor.includes('titanium') 
+                ? deviceColor === 'black-titanium' 
+                  ? 'bg-zinc-700' 
+                  : deviceColor === 'white-titanium' 
+                    ? 'bg-gray-300' 
+                    : deviceColor === 'blue-titanium' 
+                      ? 'bg-blue-400' 
+                      : 'bg-neutral-500'
+                : deviceColor === 'black' 
+                  ? 'bg-zinc-700' 
+                  : 'bg-neutral-400'
+            } rounded-r-sm`,
+            `absolute ${orientation === 'portrait' ? 'left-[-2px] top-[230px] h-[65px] w-[3px]' : 'bottom-[-2px] left-[230px] w-[65px] h-[3px]'} ${
+              deviceColor.includes('titanium') 
+                ? deviceColor === 'black-titanium' 
+                  ? 'bg-zinc-700' 
+                  : deviceColor === 'white-titanium' 
+                    ? 'bg-gray-300' 
+                    : deviceColor === 'blue-titanium' 
+                      ? 'bg-blue-400' 
+                      : 'bg-neutral-500'
+                : deviceColor === 'black' 
+                  ? 'bg-zinc-700' 
+                  : 'bg-neutral-400'
+            } rounded-r-sm`
           ],
-          cameraModule: `absolute ${orientation === 'portrait' ? 'top-6 right-6' : 'top-6 bottom-6'} w-14 h-14 ${deviceColor === 'black' ? 'bg-neutral-900' : deviceColor === 'white' ? 'bg-neutral-300' : deviceColor === 'titanium' ? 'bg-neutral-400' : 'bg-neutral-200'} rounded-xl z-5
-                          flex flex-col items-center justify-center gap-1 p-1`,
+          cameraModule: `absolute ${orientation === 'portrait' ? 'top-[20px] right-[20px]' : 'bottom-[20px] right-[20px]'} 
+                         w-[60px] h-[60px] 
+                         ${
+                           deviceColor.includes('titanium') 
+                             ? deviceColor === 'black-titanium' 
+                               ? 'bg-zinc-800' 
+                               : deviceColor === 'white-titanium' 
+                                 ? 'bg-gray-200' 
+                                 : deviceColor === 'blue-titanium' 
+                                   ? 'bg-blue-400' 
+                                   : 'bg-neutral-500'
+                             : deviceColor === 'black' 
+                               ? 'bg-zinc-800' 
+                               : deviceColor === 'white' 
+                                 ? 'bg-gray-200' 
+                                 : 'bg-amber-200'
+                         } 
+                         rounded-[18px] z-10
+                         flex flex-col items-center justify-center gap-1 p-1
+                         shadow-md
+                         after:absolute after:inset-1 after:rounded-[16px] after:bg-gradient-to-br after:from-black/20 after:to-transparent after:opacity-60`,
           cameras: [
-            `w-4 h-4 rounded-full bg-neutral-800 border border-neutral-700 relative before:absolute before:w-2 before:h-2 before:rounded-full before:bg-blue-500/20 before:top-1/2 before:left-1/2 before:-translate-x-1/2 before:-translate-y-1/2`,
-            `w-4 h-4 rounded-full bg-neutral-800 border border-neutral-700 relative before:absolute before:w-2 before:h-2 before:rounded-full before:bg-blue-500/20 before:top-1/2 before:left-1/2 before:-translate-x-1/2 before:-translate-y-1/2`,
-            `w-4 h-4 rounded-full bg-neutral-800 border border-neutral-700 relative before:absolute before:w-2 before:h-2 before:rounded-full before:bg-blue-500/20 before:top-1/2 before:left-1/2 before:-translate-x-1/2 before:-translate-y-1/2`
+            `relative w-[16px] h-[16px] rounded-full bg-black border border-gray-700 
+             before:absolute before:w-[9px] before:h-[9px] before:rounded-full before:bg-blue-500/10 before:border before:border-blue-500/20 before:top-1/2 before:left-1/2 before:-translate-x-1/2 before:-translate-y-1/2
+             after:absolute after:w-[5px] after:h-[5px] after:rounded-full after:bg-blue-500/30 after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2
+             shadow-inner`,
+            `relative w-[16px] h-[16px] rounded-full bg-black border border-gray-700 
+             before:absolute before:w-[9px] before:h-[9px] before:rounded-full before:bg-blue-500/10 before:border before:border-blue-500/20 before:top-1/2 before:left-1/2 before:-translate-x-1/2 before:-translate-y-1/2
+             after:absolute after:w-[5px] after:h-[5px] after:rounded-full after:bg-blue-500/30 after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2
+             shadow-inner`,
+            `relative w-[16px] h-[16px] rounded-full bg-black border border-gray-700 
+             before:absolute before:w-[9px] before:h-[9px] before:rounded-full before:bg-blue-500/10 before:border before:border-blue-500/20 before:top-1/2 before:left-1/2 before:-translate-x-1/2 before:-translate-y-1/2
+             after:absolute after:w-[5px] after:h-[5px] after:rounded-full after:bg-blue-500/30 after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2
+             shadow-inner`
           ],
-          proLabel: 'absolute bottom-6 right-0 rotate-90 text-xs text-gray-400 font-semibold'
+          flash: `absolute top-1 right-1 w-[10px] h-[10px] rounded-full bg-neutral-300 border border-neutral-400`,
+          microphone: `absolute bottom-1 left-1 w-[6px] h-[6px] rounded-full bg-black/50`,
+          proLabel: 'absolute bottom-8 right-0 rotate-90 text-[10px] text-gray-400 font-semibold tracking-wider'
         };
       case 'pixel-pro':
         // Google Pixel Pro with camera bar and realistic details
@@ -234,18 +333,36 @@ const DeviceFrame = ({
       onDoubleClick={handleDoubleClick}
       style={{
         transform: isPro ? `perspective(1000px) rotateX(${rotate.x}deg) rotateY(${rotate.y}deg)` : '',
-        cursor: isPro ? 'grab' : 'default'
+        cursor: isPro ? 'grab' : 'default',
+        transformStyle: 'preserve-3d'
       }}
     >
-      <div className={styles.frame}></div>
-      <div className={styles.notch}></div>
+      <div className={styles.frame} style={isPro && deviceType === 'iphone-pro' ? {
+        transformStyle: 'preserve-3d',
+        transform: 'translateZ(-2px)'
+      } : {}}></div>
+      
+      {/* Dynamic Island (for iPhone Pro) replaces the notch */}
+      {deviceType === 'iphone-pro' ? (
+        <div className={styles.dynamicIsland} style={isPro ? {
+          transformStyle: 'preserve-3d',
+          transform: 'translateZ(1px)'
+        } : {}}></div>
+      ) : (
+        <div className={styles.notch}></div>
+      )}
       
       {/* Pro device specific elements */}
       {deviceType === 'iphone-pro' && (
-        <div className={styles.cameraModule}>
+        <div className={styles.cameraModule} style={isPro ? {
+          transformStyle: 'preserve-3d',
+          transform: 'translateZ(2px)'
+        } : {}}>
           {styles.cameras && styles.cameras.map((cameraStyle, index) => (
             <div key={`camera-${index}`} className={cameraStyle}></div>
           ))}
+          <div className={styles.flash}></div>
+          <div className={styles.microphone}></div>
           {isPro && <div className={styles.proLabel}>PRO</div>}
         </div>
       )}

@@ -25,6 +25,7 @@ import { Slider } from '@/components/ui/slider';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { HexColorPicker } from "react-colorful";
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 interface TextElement {
   id: string;
@@ -188,6 +189,8 @@ const ToolsPanel = ({
     };
     reader.readAsDataURL(file);
   };
+
+  const [deviceColor, setDeviceColor] = useState(deviceColor);
 
   return (
     <div className="w-full bg-white rounded-lg border border-mockup-gray-200 overflow-hidden">
@@ -408,7 +411,12 @@ const ToolsPanel = ({
                                   <span className="text-xs font-semibold text-blue-600">PRO COLORS</span>
                                 </div>
                                 {deviceType === 'iphone-pro' && (
-                                  <SelectItem value="titanium">Titanium</SelectItem>
+                                  <>
+                                    <SelectItem value="titanium">Natural Titanium</SelectItem>
+                                    <SelectItem value="blue-titanium">Blue Titanium</SelectItem>
+                                    <SelectItem value="white-titanium">White Titanium</SelectItem>
+                                    <SelectItem value="black-titanium">Black Titanium</SelectItem>
+                                  </>
                                 )}
                                 {deviceType === 'pixel-pro' && (
                                   <SelectItem value="hazel">Hazel</SelectItem>
