@@ -407,6 +407,17 @@ const Index = () => {
           mockupContainer.style.position = 'relative';
           mockupContainer.style.overflow = 'visible';
           
+          // Apply background styles directly to the container element
+          const backgroundStyles = getBackgroundInlineStyle();
+          if (backgroundStyles.backgroundColor) {
+            mockupContainer.style.backgroundColor = backgroundStyles.backgroundColor;
+          }
+          if (backgroundStyles.backgroundImage) {
+            mockupContainer.style.backgroundImage = backgroundStyles.backgroundImage;
+            mockupContainer.style.backgroundSize = backgroundStyles.backgroundSize || 'cover';
+            mockupContainer.style.backgroundPosition = backgroundStyles.backgroundPosition || 'center';
+          }
+          
           // Force horizontal layout for devices
           deviceContainer.style.flexDirection = 'row';
           deviceContainer.style.flexWrap = 'wrap';
@@ -472,9 +483,16 @@ const Index = () => {
           logging: true, // Enable logging for debugging
           foreignObjectRendering: false, // Try disabling this as it can cause issues
           removeContainer: false, // Don't remove the container
-          backgroundColor: null, // Keep background transparency
+          backgroundColor: null, // Keep background transparency for proper background rendering
           width: mockupContainer.offsetWidth,
           height: mockupContainer.offsetHeight,
+          imageTimeout: 0, // No timeout for image loading
+          ignoreElements: (element) => {
+            // Ignore buttons and UI elements that shouldn't be in the export
+            return element.classList.contains('ignore-export') || 
+                  element.tagName === 'BUTTON' ||
+                  (element.tagName === 'DIV' && element.getAttribute('role') === 'button');
+          },
           onclone: (clonedDoc) => {
             // Additional preparation for the cloned document that will be rendered
             const clonedContainer = clonedDoc.getElementById('mockup-container');
@@ -482,6 +500,14 @@ const Index = () => {
               // Ensure all content is visible in the clone
               clonedContainer.style.visibility = 'visible';
               clonedContainer.style.opacity = '1';
+              
+              // Apply background style directly to the cloned element
+              const computedStyle = window.getComputedStyle(mockupContainer);
+              clonedContainer.style.backgroundColor = computedStyle.backgroundColor;
+              clonedContainer.style.backgroundImage = computedStyle.backgroundImage;
+              clonedContainer.style.backgroundRepeat = computedStyle.backgroundRepeat;
+              clonedContainer.style.backgroundSize = computedStyle.backgroundSize;
+              clonedContainer.style.backgroundPosition = computedStyle.backgroundPosition;
               
               // Fix cloned device elements
               const clonedDevices = clonedContainer.querySelectorAll('.devices-container > div');
@@ -1022,10 +1048,13 @@ const Index = () => {
                 </div>
               ) : (
                 <div className="relative">
-                  {isLoading && (
-                    <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-20 rounded-lg">
-                      <div className="flex flex-col items-center gap-2">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  {!isLoading && (
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-white rounded-lg">
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="relative">
+                          <div className="w-16 h-16 rounded-full border-4 border-t-blue-500 border-r-blue-500 border-b-transparent border-l-transparent animate-spin"></div>
+                          <div className="w-16 h-16 rounded-full border-4 border-t-transparent border-r-transparent border-b-blue-300 border-l-blue-300 animate-spin absolute inset-0" style={{ animationDirection: 'reverse' }}></div>
+                        </div>
                         <p className="text-sm font-medium">Generating your mockup...</p>
                         {revisedPrompt && (
                           <p className="text-xs text-center max-w-xs text-gray-500 mt-2">
