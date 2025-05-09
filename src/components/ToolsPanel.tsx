@@ -190,8 +190,6 @@ const ToolsPanel = ({
     reader.readAsDataURL(file);
   };
 
-  const [deviceColor, setDeviceColor] = useState(deviceColor);
-
   return (
     <div className="w-full bg-white rounded-lg border border-mockup-gray-200 overflow-hidden">
       <Tabs defaultValue="upload" className="w-full">
