@@ -412,7 +412,8 @@ const DeviceFrame = ({
         )}
       </div>
       
-      {isPro && (
+      {/* Only show the PRO badge for non-iPhone Pro devices when isPro is true */}
+      {isPro && deviceType !== 'iphone-pro' && (
         <div className="absolute top-2 right-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs px-2 py-1 rounded-full z-20 opacity-80">
           PRO
         </div>
