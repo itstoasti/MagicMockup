@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface DeviceFrameProps {
   image: string | null;
@@ -289,6 +289,11 @@ const DeviceFrame = ({
   const [startX, setStartX] = useState(0);
   const [startY, setStartY] = useState(0);
   const [rotate, setRotate] = useState(rotation);
+  
+  // Update local rotation state when props change
+  useEffect(() => {
+    setRotate(rotation);
+  }, [rotation.x, rotation.y]);
   
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!isPro) return;
