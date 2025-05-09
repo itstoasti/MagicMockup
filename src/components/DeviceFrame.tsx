@@ -119,8 +119,8 @@ const DeviceFrame = ({
                   : 'bg-neutral-400'
             } rounded-r-sm`
           ],
-          cameraModule: `absolute ${orientation === 'portrait' ? 'top-[20px] right-[20px]' : 'bottom-[20px] right-[20px]'} 
-                         w-[60px] h-[60px] 
+          cameraModule: `absolute ${orientation === 'portrait' ? 'top-[18px] right-[18px]' : 'bottom-[18px] right-[18px]'} 
+                         w-[48px] h-[48px] 
                          ${
                            deviceColor.includes('titanium') 
                              ? deviceColor === 'black-titanium' 
@@ -136,27 +136,27 @@ const DeviceFrame = ({
                                  ? 'bg-gray-200' 
                                  : 'bg-amber-200'
                          } 
-                         rounded-[18px] z-10
-                         flex flex-col items-center justify-center gap-1 p-1
+                         rounded-[16px] z-10
+                         flex flex-col items-center justify-center gap-0.5 p-1
                          shadow-md
-                         after:absolute after:inset-1 after:rounded-[16px] after:bg-gradient-to-br after:from-black/20 after:to-transparent after:opacity-60`,
+                         after:absolute after:inset-1 after:rounded-[14px] after:bg-gradient-to-br after:from-black/20 after:to-transparent after:opacity-60`,
           cameras: [
-            `relative w-[16px] h-[16px] rounded-full bg-black border border-gray-700 
-             before:absolute before:w-[9px] before:h-[9px] before:rounded-full before:bg-blue-500/10 before:border before:border-blue-500/20 before:top-1/2 before:left-1/2 before:-translate-x-1/2 before:-translate-y-1/2
-             after:absolute after:w-[5px] after:h-[5px] after:rounded-full after:bg-blue-500/30 after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2
+            `relative w-[12px] h-[12px] rounded-full bg-black border border-gray-700 
+             before:absolute before:w-[6px] before:h-[6px] before:rounded-full before:bg-blue-500/10 before:border before:border-blue-500/20 before:top-1/2 before:left-1/2 before:-translate-x-1/2 before:-translate-y-1/2
+             after:absolute after:w-[3px] after:h-[3px] after:rounded-full after:bg-blue-500/30 after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2
              shadow-inner`,
-            `relative w-[16px] h-[16px] rounded-full bg-black border border-gray-700 
-             before:absolute before:w-[9px] before:h-[9px] before:rounded-full before:bg-blue-500/10 before:border before:border-blue-500/20 before:top-1/2 before:left-1/2 before:-translate-x-1/2 before:-translate-y-1/2
-             after:absolute after:w-[5px] after:h-[5px] after:rounded-full after:bg-blue-500/30 after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2
+            `relative w-[12px] h-[12px] rounded-full bg-black border border-gray-700 
+             before:absolute before:w-[6px] before:h-[6px] before:rounded-full before:bg-blue-500/10 before:border before:border-blue-500/20 before:top-1/2 before:left-1/2 before:-translate-x-1/2 before:-translate-y-1/2
+             after:absolute after:w-[3px] after:h-[3px] after:rounded-full after:bg-blue-500/30 after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2
              shadow-inner`,
-            `relative w-[16px] h-[16px] rounded-full bg-black border border-gray-700 
-             before:absolute before:w-[9px] before:h-[9px] before:rounded-full before:bg-blue-500/10 before:border before:border-blue-500/20 before:top-1/2 before:left-1/2 before:-translate-x-1/2 before:-translate-y-1/2
-             after:absolute after:w-[5px] after:h-[5px] after:rounded-full after:bg-blue-500/30 after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2
+            `relative w-[12px] h-[12px] rounded-full bg-black border border-gray-700 
+             before:absolute before:w-[6px] before:h-[6px] before:rounded-full before:bg-blue-500/10 before:border before:border-blue-500/20 before:top-1/2 before:left-1/2 before:-translate-x-1/2 before:-translate-y-1/2
+             after:absolute after:w-[3px] after:h-[3px] after:rounded-full after:bg-blue-500/30 after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2
              shadow-inner`
           ],
-          flash: `absolute top-1 right-1 w-[10px] h-[10px] rounded-full bg-neutral-300 border border-neutral-400`,
-          microphone: `absolute bottom-1 left-1 w-[6px] h-[6px] rounded-full bg-black/50`,
-          proLabel: 'absolute bottom-8 right-0 rotate-90 text-[10px] text-gray-400 font-semibold tracking-wider'
+          flash: `absolute top-0.5 right-0.5 w-[6px] h-[6px] rounded-full bg-neutral-300 border border-neutral-400`,
+          microphone: `absolute bottom-0.5 left-0.5 w-[4px] h-[4px] rounded-full bg-black/50`,
+          proLabel: 'absolute bottom-6 right-0 rotate-90 text-[8px] text-gray-400 font-semibold tracking-wider'
         };
       case 'pixel-pro':
         // Google Pixel Pro with camera bar and realistic details
