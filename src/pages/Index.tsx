@@ -10,12 +10,6 @@ import { Button } from '@/components/ui/button';
 import html2canvas from 'html2canvas';
 import Draggable from 'react-draggable';
 
-// Import our new Canva-like components
-import CanvaLayout from '@/components/CanvaLayout';
-import CanvaToolsSidebar from '@/components/CanvaToolsSidebar';
-import CanvaPropertiesSidebar from '@/components/CanvaPropertiesSidebar';
-import CanvaWorkspace from '@/components/CanvaWorkspace';
-
 interface TextElement {
   id: string;
   text: string;
@@ -62,16 +56,6 @@ const Index = () => {
   const [isPro, setIsPro] = useState(false);
   const [customBackgroundColor, setCustomBackgroundColor] = useState<string | null>(null);
   const [customBackgroundImage, setCustomBackgroundImage] = useState<string | null>(null);
-  const [showRightSidebar, setShowRightSidebar] = useState(true);
-  
-  // For Canva-like selection mode
-  const [selection, setSelection] = useState<{
-    type: 'device' | 'text' | 'none';
-    id: string | null;
-  }>({
-    type: 'device',
-    id: activeDeviceId
-  });
 
   const handleImageUpload = (image: string) => {
     // Update the active device's image
@@ -683,10 +667,6 @@ const Index = () => {
     
     setTextElements(prev => [...prev, newElement]);
     setActiveTextId(newId);
-    setSelection({
-      type: 'text',
-      id: newId
-    });
   };
 
   const handleUpdateTextElement = (id: string, field: keyof TextElement, value: any) => {
@@ -701,10 +681,6 @@ const Index = () => {
     setTextElements(prev => prev.filter(element => element.id !== id));
     if (activeTextId === id) {
       setActiveTextId(null);
-      setSelection({
-        type: 'none',
-        id: null
-      });
     }
   };
 
@@ -757,135 +733,200 @@ const Index = () => {
   };
 
   const handleAddDevice = () => {
-    // Generate a new ID
-    const newId = `device-${Date.now()}`;
+    // Generate a new unique ID
+    const newId = `${Date.now()}`;
     
-    // Clone the currently active device with a new ID
-    const activeDevice = devices.find(d => d.id === activeDeviceId);
-    let newDevice: Device;
+    // Add a new device to the list - if Pro is enabled, make it a Pro device
+    const newType = isPro ? 'iphone-pro' : 'iphone';
     
-    if (activeDevice) {
-      newDevice = {
-        id: newId,
-        type: activeDevice.type,
-        color: activeDevice.color,
-        image: activeDevice.image,
-        isPro: activeDevice.isPro,
-        rotation: { x: 0, y: 0 } // Reset rotation for the new device
-      };
-    } else {
-      // Fallback if somehow there's no active device
-      newDevice = {
-        id: newId,
-        type: 'iphone',
-        color: 'black',
-        image: null,
-        rotation: { x: 0, y: 0 }
-      };
-    }
+    setDevices(prev => [...prev, { 
+      id: newId, 
+      type: newType, 
+      color: 'black', 
+      image: uploadedImage, // use the main image as default
+      isPro: isPro && ['iphone-pro', 'pixel-pro', 'galaxy-fold', 'macbook-pro'].includes(newType),
+      rotation: { x: 0, y: 0 }
+    }]);
     
-    // Add the new device and make it active
-    setDevices([...devices, newDevice]);
+    // Make the new device active
     setActiveDeviceId(newId);
-    setSelection({
-      type: 'device',
-      id: newId
-    });
     
-    // If adding a second device, automatically enable multiple devices mode
-    if (devices.length === 1) {
-      setMultipleDevices({
-        ...multipleDevices,
-        enabled: true
-      });
+    // Enable multiple devices mode if not already enabled
+    if (!multipleDevices.enabled) {
+      setMultipleDevices(prev => ({ ...prev, enabled: true }));
     }
   };
 
   const handleRemoveDevice = (id: string) => {
     // Don't allow removing the last device
-    if (devices.length <= 1) {
-      toast({
-        title: "Cannot Remove Device",
-        description: "You must have at least one device in your mockup.",
-        variant: "destructive"
-      });
-      return;
-    }
+    if (devices.length <= 1) return;
     
     // Remove the device
     setDevices(prev => prev.filter(device => device.id !== id));
     
-    // If we're removing the active device, make another device active
+    // If removing the active device, set another one as active
     if (activeDeviceId === id) {
       const remainingDevices = devices.filter(device => device.id !== id);
-      if (remainingDevices.length > 0) {
-        setActiveDeviceId(remainingDevices[0].id);
-        setSelection({
-          type: 'device',
-          id: remainingDevices[0].id
-        });
-      }
+      setActiveDeviceId(remainingDevices[0].id);
     }
     
-    // If we're down to a single device, disable multiple devices mode
-    if (devices.length - 1 === 1) {
-      setMultipleDevices({
-        ...multipleDevices,
-        enabled: false
-      });
+    // Disable multiple devices mode if only one device remains
+    if (devices.length === 2) {
+      setMultipleDevices(prev => ({ ...prev, enabled: false }));
     }
   };
 
   const handleSelectDevice = (id: string) => {
     setActiveDeviceId(id);
-    setSelection({
-      type: 'device',
-      id
-    });
+    
+    // Update the main states to reflect the selected device
+    const selectedDevice = devices.find(device => device.id === id);
+    if (selectedDevice) {
+      setDeviceType(selectedDevice.type);
+      setDeviceColor(selectedDevice.color);
+      setUploadedImage(selectedDevice.image);
+    }
   };
 
-  const handleTextElementSelect = (id: string | null) => {
-    setActiveTextId(id);
-    if (id) {
-      setSelection({
-        type: 'text',
-        id
-      });
-    } else if (activeDeviceId) {
-      setSelection({
-        type: 'device',
-        id: activeDeviceId
-      });
-    } else {
-      setSelection({
-        type: 'none',
-        id: null
-      });
-    }
+  const handlePanelCollapseChange = (collapsed: boolean) => {
+    setIsPanelCollapsed(collapsed);
+    
+    // Force a re-render of draggable elements when panel collapse state changes
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 300); // Match the duration of the transition
   };
 
   const handleCustomBackgroundColorChange = (color: string) => {
     setCustomBackgroundColor(color);
-    // Reset background image when changing bg color
+    // Reset other background options
+    setBackground('custom-color');
+    // Don't reset pattern when changing custom color
+    // setBackgroundPattern('none');
     setCustomBackgroundImage(null);
   };
 
   const handleCustomBackgroundImageUpload = (image: string) => {
     setCustomBackgroundImage(image);
-    // Reset background color when uploading an image
+    // Reset other background options
+    setBackground('custom-image');
+    // Don't reset pattern when changing custom image
+    // setBackgroundPattern('none');
     setCustomBackgroundColor(null);
+    
+    toast({
+      title: "Background Image Set",
+      description: "Your custom background image has been applied.",
+    });
   };
 
-  // Get the currently active device
-  const activeDevice = devices.find(d => d.id === activeDeviceId);
-  
-  // Get the currently active text element
-  const activeText = textElements.find(t => t.id === activeTextId);
+  const getBackgroundInlineStyle = () => {
+    // First handle custom color and custom image
+    if (background === 'custom-color' && customBackgroundColor) {
+      return { backgroundColor: customBackgroundColor };
+    }
+    if (background === 'custom-image' && customBackgroundImage) {
+      return { 
+        backgroundImage: `url(${customBackgroundImage})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center' 
+      };
+    }
 
-  // Toggle right sidebar
-  const handleToggleRightSidebar = () => {
-    setShowRightSidebar(!showRightSidebar);
+    // Now handle regular colors with direct background colors to ensure they always work
+    switch (background) {
+      case 'white':
+        return { backgroundColor: '#FFFFFF' };
+      case 'gray':
+        return { backgroundColor: '#F3F4F6' }; // mockup-gray-100
+      case 'blue':
+        return { backgroundColor: '#DBEAFE' }; // blue-100
+      case 'green':
+        return { backgroundColor: '#D1FAE5' }; // green-100
+      case 'purple':
+        return { backgroundColor: '#EDE9FE' }; // purple-100
+      case 'pink':
+        return { backgroundColor: '#FCE7F3' }; // pink-100
+      case 'yellow':
+        return { backgroundColor: '#FEF3C7' }; // yellow-100
+      case 'orange':
+        return { backgroundColor: '#FFEDD5' }; // orange-100
+      case 'gradient':
+        return { 
+          backgroundImage: 'linear-gradient(to bottom right, #D1FAE5, #DBEAFE)',
+        };
+      case 'gradient-purple':
+        return { 
+          backgroundImage: 'linear-gradient(to bottom right, #EDE9FE, #FCE7F3)',
+        };
+      default:
+        return {};
+    }
   };
+
+  const getPatternStyle = () => {
+    if (backgroundPattern === 'none') return {};
+    
+    switch (backgroundPattern) {
+      case 'dots':
+        return {
+          backgroundImage: `radial-gradient(rgba(0, 0, 0, 0.3) 1px, transparent 1px)`,
+          backgroundSize: '20px 20px'
+        };
+      case 'grid':
+        return {
+          backgroundImage: `linear-gradient(to right, rgba(0, 0, 0, 0.1) 1px, transparent 1px), 
+                            linear-gradient(to bottom, rgba(0, 0, 0, 0.1) 1px, transparent 1px)`,
+          backgroundSize: '20px 20px'
+        };
+      case 'lines':
+        return {
+          backgroundImage: `linear-gradient(45deg, rgba(0, 0, 0, 0.1) 25%, transparent 25%, transparent 50%, rgba(0, 0, 0, 0.1) 50%, rgba(0, 0, 0, 0.1) 75%, transparent 75%, transparent)`,
+          backgroundSize: '40px 40px'
+        };
+      case 'zigzag':
+        return {
+          backgroundImage: `linear-gradient(-45deg, rgba(0, 0, 0, 0.1) 25%, transparent 25%, transparent 50%, rgba(0, 0, 0, 0.1) 50%, rgba(0, 0, 0, 0.1) 75%, transparent 75%, transparent)`,
+          backgroundSize: '40px 40px'
+        };
+      case 'waves':
+        return {
+          position: 'relative',
+          overflow: 'hidden'
+        };
+      default:
+        return {};
+    }
+  };
+
+  // Adding specialized component for wave pattern that renders actual SVG waves
+  const WavePatternOverlay = () => {
+    if (backgroundPattern !== 'waves') return null;
+    
+    return (
+      <div className="absolute inset-0 overflow-hidden" style={{ pointerEvents: 'none' }}>
+        <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ opacity: 0.1 }}>
+          <circle cx="0" cy="0" r="10" fill="none" stroke="black" strokeWidth="0.5" />
+          <circle cx="0" cy="0" r="20" fill="none" stroke="black" strokeWidth="0.5" />
+          <circle cx="0" cy="0" r="30" fill="none" stroke="black" strokeWidth="0.5" />
+          <circle cx="0" cy="0" r="40" fill="none" stroke="black" strokeWidth="0.5" />
+          <circle cx="0" cy="0" r="50" fill="none" stroke="black" strokeWidth="0.5" />
+          <circle cx="0" cy="0" r="60" fill="none" stroke="black" strokeWidth="0.5" />
+          <circle cx="0" cy="0" r="70" fill="none" stroke="black" strokeWidth="0.5" />
+          <circle cx="0" cy="0" r="80" fill="none" stroke="black" strokeWidth="0.5" />
+          <circle cx="0" cy="0" r="90" fill="none" stroke="black" strokeWidth="0.5" />
+          <circle cx="0" cy="0" r="100" fill="none" stroke="black" strokeWidth="0.5" />
+          <circle cx="0" cy="0" r="110" fill="none" stroke="black" strokeWidth="0.5" />
+          <circle cx="0" cy="0" r="120" fill="none" stroke="black" strokeWidth="0.5" />
+          <circle cx="0" cy="0" r="130" fill="none" stroke="black" strokeWidth="0.5" />
+          <circle cx="0" cy="0" r="140" fill="none" stroke="black" strokeWidth="0.5" />
+          <circle cx="0" cy="0" r="150" fill="none" stroke="black" strokeWidth="0.5" />
+        </svg>
+      </div>
+    );
+  };
+
+  const activeDevice = devices.find(d => d.id === activeDeviceId) || devices[0];
 
   // Inside the component, before the return statement
   // Add this to handle responsive layout adjustments when sidebar is collapsed
@@ -947,107 +988,240 @@ const Index = () => {
   };
 
   return (
-    <CanvaLayout
-      leftSidebar={
-        <CanvaToolsSidebar
-          isCollapsed={false}
-          onImageUpload={handleImageUpload}
-          onDeviceSelect={handleDeviceTypeChange}
-          deviceTypes={[
-            {id: 'iphone', name: 'iPhone'},
-            {id: 'iphone-pro', name: 'iPhone Pro'},
-            {id: 'android', name: 'Android'},
-            {id: 'pixel-pro', name: 'Pixel Pro'},
-            {id: 'ipad', name: 'iPad'},
-            {id: 'macbook', name: 'MacBook'},
-            {id: 'macbook-pro', name: 'MacBook Pro'},
-            {id: 'galaxy-fold', name: 'Galaxy Fold'}
-          ]}
-        />
-      }
-      rightSidebar={
-        <CanvaPropertiesSidebar
-          selection={selection}
-          device={activeDevice}
-          textElement={activeText}
-          onUpdateDevice={(id, field, value) => {
-            if (field === 'color') {
-              handleDeviceColorChange(value);
-            } else if (field === 'rotation') {
-              handleRotationChange(id, value);
-            }
-          }}
-          onUpdateTextElement={handleUpdateTextElement}
-          onBackground={handleBackgroundChange}
-          onShadow={handleShadowChange}
-          onOrientation={handleOrientationChange}
-        />
-      }
-      showRightSidebar={showRightSidebar}
-      onToggleRightSidebar={handleToggleRightSidebar}
-    >
-      <div className="mockup-container">
-        <CanvaWorkspace
-          devices={devices}
-          textElements={textElements}
-          orientation={orientation}
-          shadow={shadow}
-          background={background}
-          backgroundPattern={backgroundPattern}
-          onTextElementSelect={handleTextElementSelect}
-          onTextDragStop={handleTextDragStop}
-          onDeviceSelect={handleSelectDevice}
-          activeDeviceId={activeDeviceId}
-          activeTextId={activeTextId}
-          multipleDevices={multipleDevices}
-          customBackgroundColor={customBackgroundColor}
-          customBackgroundImage={customBackgroundImage}
-        />
-      </div>
+    <div className="min-h-screen flex flex-col bg-mockup-gray-50">
+      <Header />
       
-      {isLoading && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-500 mb-4" />
-            <p>Generating your mockup...</p>
+      <main className="flex-1">
+        <div className={getContainerClasses()}>
+          <div className={`grid grid-cols-1 ${isPanelCollapsed ? 'lg:grid-cols-1' : 'lg:grid-cols-3'} gap-6`}>
+            <div className={`${isPanelCollapsed ? 'lg:col-span-1' : 'lg:col-span-2'} order-2 lg:order-1`}>
+              {marketingPreview ? (
+                <div className="bg-white rounded-lg border border-mockup-gray-200 p-6 relative">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="absolute top-2 left-2 p-1 h-auto" 
+                    onClick={() => setMarketingPreview(null)}
+                  >
+                    <ChevronLeft size={16} />
+                    <span className="ml-1 text-xs">Back</span>
+                  </Button>
+                  
+                  <div className="mt-6">
+                    <MarketingPreview type={marketingPreview} imageUrl={generatedAssetUrl || ''} />
+                  </div>
+                  
+                  {generatedAssetUrl && (
+                    <div className="mt-4 flex justify-center">
+                      <Button onClick={handleDownloadImage} className="flex items-center gap-2">
+                        <Download size={16} />
+                        Download Image
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="relative">
+                  {isLoading && (
+                    <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-20 rounded-lg">
+                      <div className="flex flex-col items-center gap-2">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <p className="text-sm font-medium">Generating your mockup...</p>
+                        {revisedPrompt && (
+                          <p className="text-xs text-center max-w-xs text-gray-500 mt-2">
+                            "{revisedPrompt}"
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div 
+                    id="mockup-container"
+                    className={`
+                      min-h-[500px] bg-white rounded-lg border border-mockup-gray-200 
+                      ${isPanelCollapsed ? 'p-2 lg:p-4' : 'p-6 lg:p-8'}
+                      flex flex-col items-center justify-center relative
+                      ${isPanelCollapsed && multipleDevices.enabled ? 'w-full max-w-none' : ''}
+                    `}
+                    style={{
+                      ...getBackgroundInlineStyle(),
+                      ...(isPanelCollapsed && multipleDevices.enabled ? { minHeight: '600px' } : {})
+                    }}
+                  >
+                    {/* Pattern overlay - non-waves patterns use CSS */}
+                    {backgroundPattern !== 'none' && backgroundPattern !== 'waves' && (
+                      <div 
+                        className="absolute inset-0 pattern-overlay"
+                        style={getPatternStyle()}
+                      ></div>
+                    )}
+                    
+                    {/* Wave pattern uses SVG for better scaling */}
+                    {backgroundPattern === 'waves' && (
+                      <WavePatternOverlay />
+                    )}
+            
+                    {/* Text elements */}
+                    {textElements.map((element) => (
+                      <Draggable
+                        key={element.id}
+                        position={element.position}
+                        onStop={(e, data) => handleTextDragStop(element.id, data)}
+                        bounds="parent"
+                      >
+                        <div 
+                          className={`text-element absolute ${activeTextId === element.id ? 'ring-2 ring-blue-500' : ''}`}
+                          style={{
+                            color: element.color,
+                            fontSize: `${element.fontSize}px`,
+                            fontFamily: element.fontFamily,
+                            cursor: 'move',
+                            zIndex: activeTextId === element.id ? 100 : 10,
+                            transform: `translate(${element.position.x}px, ${element.position.y}px)`
+                          }}
+                          onClick={() => setActiveTextId(element.id)}
+                        >
+                          {element.text}
+                        </div>
+                      </Draggable>
+                    ))}
+            
+                    <div className={`
+                      flex items-center justify-center
+                      ${multipleDevices.enabled ? 
+                        `gap-2 md:gap-4 ${multipleDevices.layout === 'horizontal' ? 'flex-row flex-wrap' : 'flex-col'} 
+                         w-full overflow-hidden ${isPanelCollapsed ? 'p-2 lg:p-4 scale-100' : ''}` 
+                        : ''
+                      }
+                      devices-container
+                      ${isPanelCollapsed && multipleDevices.enabled ? 'collapsed-view' : ''}
+                      ${devices.length >= 4 ? 'small-gap' : ''}
+                    `}>
+                      {devices.map((device, index) => (
+                        <div 
+                          key={device.id}
+                          className={`
+                            animate-float relative 
+                            ${multipleDevices.enabled ? 
+                              `transform origin-center` 
+                              : ''
+                            }
+                            ${isPanelCollapsed && multipleDevices.enabled ? 'p-1 lg:p-2' : ''}
+                            ${activeDeviceId === device.id ? 'ring-4 ring-blue-500 rounded-[60px] p-2' : ''}
+                          `}
+                          style={{ 
+                            animationDelay: `${index * 0.2}s`,
+                            // Apply direct transform scale for better precision
+                            transform: multipleDevices.enabled ? `scale(${multipleDevices.scale})` : '',
+                            margin: multipleDevices.enabled && devices.length >= 4 ? '4px' : undefined
+                          }}
+                          onClick={() => handleSelectDevice(device.id)}
+                        >
+                          <DeviceFrame 
+                            image={device.image} 
+                            deviceType={device.type}
+                            deviceColor={device.color}
+                            orientation={orientation}
+                            shadow={shadow}
+                            isPro={device.isPro}
+                            rotation={device.rotation}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+          
+                  {/* Toggle button for panel collapse */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="lg:hidden w-full mt-4"
+                    onClick={() => handlePanelCollapseChange(!isPanelCollapsed)}
+                  >
+                    {isPanelCollapsed ? 'Show Settings' : 'Hide Settings'}
+                  </Button>
+                </div>
+              )}
+            </div>
+            
+            <div className={`lg:col-span-1 order-1 lg:order-2 ${isPanelCollapsed ? 'lg:absolute lg:right-4 lg:top-24 lg:z-10' : ''}`}>
+              <div className={`${isPanelCollapsed ? 'hidden' : 'block'}`}>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold text-mockup-gray-800">Mockup Settings</h2>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handlePanelCollapseChange(!isPanelCollapsed)}
+                    className="hidden lg:flex items-center gap-1"
+                  >
+                    <ChevronRight size={16} />
+                    <span>Hide</span>
+                  </Button>
+                </div>
+                <ToolsPanel 
+                  onImageUpload={handleImageUpload}
+                  onDeviceTypeChange={handleDeviceTypeChange}
+                  onDeviceColorChange={handleDeviceColorChange}
+                  onOrientationChange={handleOrientationChange}
+                  onShadowChange={handleShadowChange}
+                  onBackgroundChange={handleBackgroundChange}
+                  deviceType={deviceType}
+                  deviceColor={deviceColor}
+                  orientation={orientation}
+                  shadow={shadow}
+                  background={background}
+                  hasImage={!!uploadedImage}
+                  onExport={handleExport}
+                  textElements={textElements}
+                  activeTextId={activeTextId}
+                  onAddTextElement={handleAddTextElement}
+                  onUpdateTextElement={handleUpdateTextElement}
+                  onRemoveTextElement={handleRemoveTextElement}
+                  onTextElementSelect={setActiveTextId}
+                  multipleDevices={multipleDevices}
+                  onMultipleDevicesChange={handleMultipleDevicesChange}
+                  backgroundPattern={backgroundPattern}
+                  onBackgroundPatternChange={handleBackgroundPatternChange}
+                  devices={devices}
+                  activeDeviceId={activeDeviceId}
+                  onSelectDevice={handleSelectDevice}
+                  onAddDevice={handleAddDevice}
+                  onRemoveDevice={handleRemoveDevice}
+                  collapsed={isPanelCollapsed}
+                  onCollapseChange={handlePanelCollapseChange}
+                  isPro={isPro}
+                  onProChange={handleProChange}
+                  onRotationChange={handleRotationChange}
+                  customBackgroundImage={customBackgroundImage}
+                  customBackgroundColor={customBackgroundColor}
+                  onCustomBackgroundImageUpload={handleCustomBackgroundImageUpload}
+                  onCustomBackgroundColorChange={handleCustomBackgroundColorChange}
+                />
+              </div>
+              
+              {/* Show button to expand panel when collapsed */}
+              {isPanelCollapsed && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePanelCollapseChange(false)}
+                  className="hidden lg:flex items-center gap-1 mt-2"
+                >
+                  <ChevronLeft size={16} />
+                  <span>Show Settings</span>
+                </Button>
+              )}
+            </div>
           </div>
         </div>
-      )}
+      </main>
       
-      {generatedAssetUrl && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-            <h3 className="text-xl font-bold mb-4">Your Mockup is Ready!</h3>
-            <div className="border rounded-lg overflow-hidden mb-4">
-              <img src={generatedAssetUrl} alt="Generated Mockup" className="w-full h-auto" />
-            </div>
-            <div className="flex space-x-2">
-              <Button 
-                variant="outline" 
-                className="flex-1"
-                onClick={() => setGeneratedAssetUrl(null)}
-              >
-                Close
-              </Button>
-              <Button 
-                className="flex-1 gap-1"
-                onClick={() => {
-                  const a = document.createElement('a');
-                  a.href = generatedAssetUrl;
-                  a.download = `mockup-${new Date().getTime()}.png`;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                }}
-              >
-                <Download size={16} />
-                Download
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </CanvaLayout>
+      <Footer />
+      
+      {/* Hidden elements for export */}
+      <div id="capture-area" className="hidden"></div>
+    </div>
   );
 };
 
