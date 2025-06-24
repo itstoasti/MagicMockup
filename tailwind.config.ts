@@ -1,4 +1,3 @@
-
 import type { Config } from "tailwindcss";
 
 export default {
@@ -114,5 +113,16 @@ export default {
 			}
 		}
 	},
-	plugins: [require("tailwindcss-animate")],
+	plugins: [
+		require("tailwindcss-animate"),
+		function({ addUtilities }) {
+			const newUtilities = {
+				'.transform-style-3d': {
+					'transform-style': 'preserve-3d',
+					'perspective': '1000px'
+				}
+			}
+			addUtilities(newUtilities)
+		}
+	],
 } satisfies Config;

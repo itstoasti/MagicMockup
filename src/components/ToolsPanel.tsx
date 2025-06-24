@@ -12,7 +12,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from '@/components/ui/label';
 import UploadArea from './UploadArea';
-import { Check, Download, Image, ImagePlus, Type, Layers, Palette, MousePointerClick, Trash2, Plus, Smartphone, X, Cpu, RotateCw, Lock, FileImage, GalleryHorizontalEnd, Share2 } from 'lucide-react';
+import { Check, Download, Image, ImagePlus, Type, Layers, Palette, MousePointerClick, Trash2, Plus, Smartphone, X, Cpu, RotateCw, Lock, FileImage, GalleryHorizontalEnd, Share2, Monitor } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -85,6 +85,8 @@ interface ToolsPanelProps {
   customBackgroundColor?: string | null;
   onCustomBackgroundImageUpload?: (image: string) => void;
   onCustomBackgroundColorChange?: (color: string) => void;
+  canvasSize?: { width: number; height: number };
+  onCanvasSizeChange?: (size: { width: number; height: number }) => void;
 }
 
 const ToolsPanel = ({
@@ -122,7 +124,9 @@ const ToolsPanel = ({
   customBackgroundImage = null,
   customBackgroundColor = null,
   onCustomBackgroundImageUpload = () => {},
-  onCustomBackgroundColorChange = () => {}
+  onCustomBackgroundColorChange = () => {},
+  canvasSize = { width: 1200, height: 800 },
+  onCanvasSizeChange = () => {}
 }: ToolsPanelProps) => {
   
   const { toast } = useToast();
@@ -160,6 +164,7 @@ const ToolsPanel = ({
       case 'ipad': return 'iPad Pro';
       case 'macbook': return 'MacBook';
       case 'macbook-pro': return 'MacBook Pro';
+      case 'browser': return 'Browser Screenshot';
       default: return type;
     }
   };
@@ -222,7 +227,11 @@ const ToolsPanel = ({
                           onClick={() => onSelectDevice(device.id)}
                         >
                           <div className="flex items-center gap-2">
-                            <Smartphone size={16} className="text-gray-500" />
+                            {device.type === 'browser' ? (
+                              <Monitor size={16} className="text-gray-500" />
+                            ) : (
+                              <Smartphone size={16} className="text-gray-500" />
+                            )}
                             <div>
                               <p className="text-sm font-medium">{getDeviceTypeName(device.type)}</p>
                               <p className="text-xs text-gray-500">{device.color} {device.isPro && <span className="text-blue-500 font-medium">PRO</span>}</p>
@@ -374,6 +383,7 @@ const ToolsPanel = ({
                             <SelectItem value="android">Android Phone</SelectItem>
                             <SelectItem value="ipad">iPad Pro</SelectItem>
                             <SelectItem value="macbook">MacBook</SelectItem>
+                            <SelectItem value="browser">Browser Screenshot</SelectItem>
                             
                             {isPro && (
                               <>
@@ -398,11 +408,21 @@ const ToolsPanel = ({
                             <SelectValue placeholder="Select color" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="black">Black</SelectItem>
-                            <SelectItem value="white">White</SelectItem>
-                            <SelectItem value="gold">Gold</SelectItem>
+                            {deviceType === 'browser' ? (
+                              <>
+                                <SelectItem value="light">Light Border</SelectItem>
+                                <SelectItem value="dark">Dark Border</SelectItem>
+                                <SelectItem value="white">No Border</SelectItem>
+                              </>
+                            ) : (
+                              <>
+                                <SelectItem value="black">Black</SelectItem>
+                                <SelectItem value="white">White</SelectItem>
+                                <SelectItem value="gold">Gold</SelectItem>
+                              </>
+                            )}
                             
-                            {isPro && (
+                            {isPro && deviceType !== 'browser' && (
                               <>
                                 <Separator className="my-2" />
                                 <div className="px-2 py-1.5">
@@ -535,7 +555,11 @@ const ToolsPanel = ({
                                     onClick={() => onSelectDevice(device.id)}
                                   >
                                     <div className="flex items-center gap-2">
-                                      <Smartphone size={16} className="text-gray-500" />
+                                      {device.type === 'browser' ? (
+                                        <Monitor size={16} className="text-gray-500" />
+                                      ) : (
+                                        <Smartphone size={16} className="text-gray-500" />
+                                      )}
                                       <div>
                                         <p className="text-sm font-medium">{getDeviceTypeName(device.type)}</p>
                                         <p className="text-xs text-gray-500">{device.color}</p>
@@ -881,6 +905,79 @@ const ToolsPanel = ({
           
           <TabsContent value="export">
             <div className="space-y-4">
+              {/* Canvas Size Controls */}
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 mb-4">
+                <h3 className="font-medium text-blue-800 mb-2 flex items-center gap-2">
+                  <FileImage size={16} />
+                  Canvas Size
+                </h3>
+                <p className="text-sm text-blue-600 mb-4">Set the export canvas dimensions</p>
+                
+                <div className="space-y-3">
+                  {/* Preset Sizes */}
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700 mb-2 block">Common Sizes</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { name: 'HD', width: 1920, height: 1080 },
+                        { name: 'Desktop', width: 1200, height: 800 },
+                        { name: 'Tablet', width: 1024, height: 768 },
+                        { name: 'Square', width: 1080, height: 1080 },
+                        { name: 'Instagram', width: 1080, height: 1080 },
+                        { name: 'Twitter', width: 1200, height: 675 }
+                      ].map((preset) => (
+                        <Button
+                          key={preset.name}
+                          variant={canvasSize.width === preset.width && canvasSize.height === preset.height ? "default" : "outline"}
+                          size="sm"
+                          className="text-xs h-8"
+                          onClick={() => onCanvasSizeChange({ width: preset.width, height: preset.height })}
+                        >
+                          {preset.name}
+                          <span className="ml-1 opacity-70">{preset.width}×{preset.height}</span>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Custom Size Inputs */}
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700 mb-2 block">Custom Size</Label>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <Label className="text-xs text-gray-500">Width</Label>
+                        <Input
+                          type="number"
+                          value={canvasSize.width}
+                          onChange={(e) => onCanvasSizeChange({ 
+                            width: parseInt(e.target.value) || 1200, 
+                            height: canvasSize.height 
+                          })}
+                          className="h-8"
+                          min="100"
+                          max="4000"
+                        />
+                      </div>
+                      <div className="mt-4 text-gray-400">×</div>
+                      <div className="flex-1">
+                        <Label className="text-xs text-gray-500">Height</Label>
+                        <Input
+                          type="number"
+                          value={canvasSize.height}
+                          onChange={(e) => onCanvasSizeChange({ 
+                            width: canvasSize.width, 
+                            height: parseInt(e.target.value) || 800 
+                          })}
+                          className="h-8"
+                          min="100"
+                          max="4000"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
               <div className="p-4 bg-mockup-gray-50 rounded-lg border border-mockup-gray-200 mb-4">
                 <h3 className="font-medium text-mockup-gray-700 mb-2">Marketing Assets (Pro)</h3>
                 <p className="text-sm text-mockup-gray-500 mb-4">Generate professional marketing assets for different platforms.</p>
@@ -913,6 +1010,21 @@ const ToolsPanel = ({
                     <div className="text-left">
                       <div className="font-medium text-mockup-gray-700">Instagram</div>
                       <div className="text-xs text-mockup-gray-500">1080 x 1080</div>
+                    </div>
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    className="h-auto py-3 justify-start gap-3 col-span-2 mt-2" 
+                    onClick={() => onExport('openai-mockup')}
+                    disabled={!hasImage}
+                  >
+                    <div className="bg-green-100 p-2 rounded-md">
+                      <Cpu size={18} className="text-green-600" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-medium text-mockup-gray-700">AI Scene Generator</div>
+                      <div className="text-xs text-mockup-gray-500">Custom real-life scenes with OpenAI</div>
                     </div>
                   </Button>
                 </div>

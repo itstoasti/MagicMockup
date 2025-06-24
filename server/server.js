@@ -3,10 +3,7 @@ const cors = require('cors');
 require('dotenv').config();
 const OpenAI = require('openai'); // Import OpenAI
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// OpenAI client will be initialized when needed
 
 const app = express();
 const port = process.env.PORT || 3001; // Use port from .env or default to 3001
@@ -58,6 +55,11 @@ app.post('/api/generate-marketing-asset', async (req, res) => { // Make route as
   }
 
   try {
+    // Initialize OpenAI client only when needed
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+
     const response = await openai.images.generate({
       model: "dall-e-3", // Or "dall-e-2" if preferred/needed
       prompt: prompt,

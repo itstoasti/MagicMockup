@@ -56,6 +56,9 @@ const Index = () => {
   const [isPro, setIsPro] = useState(false);
   const [customBackgroundColor, setCustomBackgroundColor] = useState<string | null>(null);
   const [customBackgroundImage, setCustomBackgroundImage] = useState<string | null>(null);
+  const [openAIPrompt, setOpenAIPrompt] = useState<string>('');
+  const [showOpenAIPromptModal, setShowOpenAIPromptModal] = useState(false);
+  const [canvasSize, setCanvasSize] = useState({ width: 1200, height: 800 });
 
   const handleImageUpload = (image: string) => {
     // Update the active device's image
@@ -158,6 +161,21 @@ const Index = () => {
         title: "Download started",
         description: `Your ${marketingPreview} mockup is being downloaded.`,
       });
+    }
+  };
+
+  // Helper to get the readable device type name
+  const getDeviceTypeName = (type: string) => {
+    switch(type) {
+      case 'iphone': return 'iPhone 14 Pro';
+      case 'iphone-pro': return 'iPhone 15 Pro';
+      case 'pixel-pro': return 'Pixel Pro';
+      case 'galaxy-fold': return 'Galaxy Fold';
+      case 'android': return 'Android Phone';
+      case 'ipad': return 'iPad Pro';
+      case 'macbook': return 'MacBook';
+      case 'macbook-pro': return 'MacBook Pro';
+      default: return type;
     }
   };
 
@@ -296,6 +314,94 @@ const Index = () => {
       return;
     }
 
+    if (type === 'openai-mockup') {
+      // Show the OpenAI prompt modal
+      setOpenAIPrompt('');
+      setShowOpenAIPromptModal(true);
+      return;
+    }
+
+    if (type === 'openai-mockup-confirmed') {
+      // User has confirmed the prompt, proceed with OpenAI image generation
+      setIsLoading(true);
+      setGeneratedAssetUrl(null); // Reset previous asset
+      setRevisedPrompt(null); // Reset previous prompt
+      setMarketingPreview('openai-mockup'); // Open marketing preview modal
+
+      try {
+        // Export the current mockup to use as a reference image
+        const mockupContainer = document.querySelector('#mockup-container') as HTMLElement;
+        if (!mockupContainer) {
+          throw new Error('Mockup container not found');
+        }
+
+        const canvas = await html2canvas(mockupContainer, {
+          allowTaint: true,
+          useCORS: true,
+          scale: 2,
+          backgroundColor: null,
+        });
+        
+        const mockupImageBase64 = canvas.toDataURL('image/png');
+        
+        // Call Supabase Edge function to handle the OpenAI API call (security)
+        const functionUrl = 'https://ymeoglaoccsstbwbqicq.supabase.co/functions/v1/generate-openai-mockup';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltZW9nbGFvY2Nzc3Rid2JxaWNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY0MjgxNDQsImV4cCI6MjA2MjAwNDE0NH0.08zMmn-gLm4-2_7odg5-gC25sSmyrP8iZKZu6qBqLAo';
+
+        // Get active device type for better prompts
+        const activeDevice = devices.find(d => d.id === activeDeviceId);
+        const deviceTypeName = activeDevice 
+          ? getDeviceTypeName(activeDevice.type) 
+          : 'smartphone';
+
+        const response = await fetch(functionUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+            'apikey': supabaseAnonKey
+          },
+          body: JSON.stringify({
+            mockupImage: mockupImageBase64,
+            deviceType: deviceTypeName,
+            userPrompt: openAIPrompt,
+            model: 'gpt-image-1' // Use OpenAI Images API with gpt-image-1 model
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to generate AI mockup scene');
+        }
+
+        const data = await response.json();
+
+        if (data.success && data.imageUrl) {
+          setGeneratedAssetUrl(data.imageUrl);
+          if (data.revisedPrompt) {
+            setRevisedPrompt(data.revisedPrompt);
+          }
+          toast({
+            title: "AI Scene Generated",
+            description: "Your custom scene mockup is ready for preview.",
+          });
+        } else {
+          throw new Error('API response missing success or imageUrl');
+        }
+
+      } catch (error) {
+        console.error("Error generating AI scene mockup:", error);
+        toast({
+          title: "Generation Failed",
+          description: "Could not generate the AI scene. Please try again.",
+          variant: "destructive",
+        });
+        setMarketingPreview(null); // Close modal on error
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
     if (type === 'mockup') {
       // Show a loading state
       setIsLoading(true);
@@ -315,6 +421,7 @@ const Index = () => {
       const draggableElements = document.querySelectorAll('.react-draggable');
       draggableElements.forEach(el => {
         (el as HTMLElement).style.pointerEvents = 'none';
+        (el as HTMLElement).style.position = 'static'; // Ensure draggable wrapper doesn't interfere
       });
 
       // Ensure text elements are visible during export
@@ -323,15 +430,21 @@ const Index = () => {
         (el as HTMLElement).style.zIndex = '9999';
         (el as HTMLElement).style.opacity = '1';
         (el as HTMLElement).style.visibility = 'visible';
+        (el as HTMLElement).style.position = 'absolute';
+        (el as HTMLElement).style.pointerEvents = 'none'; // Prevent interaction during capture
       });
 
       // Save original container styling
-      const mockupContainer = document.querySelector('#mockup-container') as HTMLElement;
+      let mockupContainer = document.querySelector('#mockup-container') as HTMLElement;
       const originalContainerStyles = {
         width: mockupContainer.style.width,
         maxWidth: mockupContainer.style.maxWidth,
         height: mockupContainer.style.height,
         padding: mockupContainer.style.padding,
+        margin: mockupContainer.style.margin,
+        minWidth: mockupContainer.style.minWidth,
+        minHeight: mockupContainer.style.minHeight,
+        maxHeight: mockupContainer.style.maxHeight,
         display: mockupContainer.style.display,
         alignItems: mockupContainer.style.alignItems,
         justifyContent: mockupContainer.style.justifyContent,
@@ -357,21 +470,15 @@ const Index = () => {
       // Remember if we added a temporary background
       let tempBgElement: HTMLElement | null = null;
       
+      // Browser screenshot handling removed - using canvas approach now
+      
       try {
-        // Force all devices to use the same consistent scale
+        // Clean up device elements for export (remove UI artifacts only)
         const deviceElements = mockupContainer.querySelectorAll('.devices-container > div');
         deviceElements.forEach(el => {
-          // Remove any selection rings
+          // Only remove selection rings and UI artifacts - don't change layout
           (el as HTMLElement).classList.remove('ring-4', 'ring-blue-500', 'rounded-[60px]');
-          (el as HTMLElement).style.padding = '0';
-          (el as HTMLElement).style.margin = '16px'; // Consistent margin 
-          (el as HTMLElement).style.transform = 'scale(1)'; // Reset to uniform scale
-          // Fix z-index to prevent overlap
-          (el as HTMLElement).style.zIndex = '10';
-          (el as HTMLElement).style.position = 'relative';
-          // Ensure visibility
-          (el as HTMLElement).style.opacity = '1';
-          (el as HTMLElement).style.visibility = 'visible';
+          
           // Remove any selection indicators
           const innerRings = (el as HTMLElement).querySelectorAll('.ring');
           innerRings.forEach(ring => {
@@ -379,13 +486,25 @@ const Index = () => {
           });
         });
 
-        // Apply export-specific styling
+        // Keep the devices container layout as-is for export
+        // Don't modify positioning or layout - capture exactly what's displayed
+
+        // Minimal export preparation - ensure visibility and proper sizing
+        mockupContainer.style.overflow = 'visible'; // Allow any rotated content to be captured
+        mockupContainer.style.position = 'relative'; // Ensure proper positioning context
+        
+        // Reset any scroll positions that might affect capture
+        window.scrollTo(0, 0);
+        document.body.scrollTop = 0;
+        document.documentElement.scrollTop = 0;
+        
+        // Wait a moment for scroll to complete
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         if (multipleDevices.enabled) {
-          // Set fixed container width for better export - increase width for many devices
           const devicesCount = devices.length;
           let containerWidth = '1200px';
           
-          // Scale container width based on number of devices
           if (devicesCount <= 2) {
             containerWidth = '900px';
           } else if (devicesCount <= 3) {
@@ -397,17 +516,21 @@ const Index = () => {
           }
           
           mockupContainer.style.width = containerWidth;
-          mockupContainer.style.maxWidth = containerWidth;
+          mockupContainer.style.maxWidth = containerWidth; // Keep this for multi-device structure
           mockupContainer.style.height = 'auto';
-          mockupContainer.style.minHeight = '800px';
-          mockupContainer.style.padding = '40px';
+          mockupContainer.style.minHeight = '800px'; // Keep a min height for multi-device
+          
+          // Apply asymmetric padding for multiple devices export too
+          const currentPadding = parseInt(window.getComputedStyle(mockupContainer).padding) || 0;
+          const topPadding = Math.max(400, currentPadding); // Same generous top padding to prevent cutoff
+          const bottomPadding = Math.max(150, currentPadding); // Less bottom padding for better centering
+          const sidePadding = Math.max(200, currentPadding); // Slightly less side padding for multi-device
+          
+          mockupContainer.style.padding = `${topPadding}px ${sidePadding}px ${bottomPadding}px ${sidePadding}px`;
           mockupContainer.style.display = 'flex';
           mockupContainer.style.alignItems = 'center';
           mockupContainer.style.justifyContent = 'center';
-          mockupContainer.style.position = 'relative';
-          mockupContainer.style.overflow = 'visible';
           
-          // Apply background styles directly to the container element
           const backgroundStyles = getBackgroundInlineStyle();
           if (backgroundStyles.backgroundColor) {
             mockupContainer.style.backgroundColor = backgroundStyles.backgroundColor;
@@ -418,24 +541,74 @@ const Index = () => {
             mockupContainer.style.backgroundPosition = backgroundStyles.backgroundPosition || 'center';
           }
           
-          // Force horizontal layout for devices
-          deviceContainer.style.flexDirection = 'row';
-          deviceContainer.style.flexWrap = 'wrap';
+          deviceContainer.style.flexDirection = multipleDevices.layout === 'horizontal' ? 'row' : 'column';
+          deviceContainer.style.flexWrap = multipleDevices.layout === 'horizontal' ? 'wrap' : 'nowrap';
           deviceContainer.style.width = '100%';
           deviceContainer.style.justifyContent = 'center';
           deviceContainer.style.alignItems = 'center';
-          deviceContainer.style.gap = '40px';
+          deviceContainer.style.gap = multipleDevices.layout === 'horizontal' ? '40px' : '40px';
           deviceContainer.style.padding = '20px';
           deviceContainer.style.position = 'relative';
           
-          // Add additional styling for wrapped layouts
-          if (devicesCount > 3) {
+          // For horizontal layout, ensure container is wide enough to fit devices side by side
+          if (multipleDevices.layout === 'horizontal' && devicesCount <= 3) {
+            // Remove flex-wrap for small number of devices to ensure they stay on same line
+            deviceContainer.style.flexWrap = 'nowrap';
+            // Increase container width to ensure devices fit side by side
+            if (devicesCount === 2) {
+              mockupContainer.style.width = '1000px';
+              mockupContainer.style.maxWidth = '1000px';
+            }
+          }
+          
+          // Add row gap for horizontal layouts with many devices that need to wrap
+          if (multipleDevices.layout === 'horizontal' && devicesCount > 3) {
             deviceContainer.style.rowGap = '60px';
+          }
+        } else {
+          // Single device export - use asymmetric padding to center device properly
+          const currentPadding = parseInt(window.getComputedStyle(mockupContainer).padding) || 0;
+          const topPadding = Math.max(400, currentPadding); // Keep generous top padding to prevent cutoff
+          const bottomPadding = Math.max(150, currentPadding); // Reduced bottom padding for better centering
+          const sidePadding = Math.max(300, currentPadding); // Moderate side padding
+          
+          mockupContainer.style.padding = `${topPadding}px ${sidePadding}px ${bottomPadding}px ${sidePadding}px`;
+          
+          // Apply background styles 
+          const backgroundStyles = getBackgroundInlineStyle();
+          if (backgroundStyles.backgroundColor) {
+            mockupContainer.style.backgroundColor = backgroundStyles.backgroundColor;
+          }
+          if (backgroundStyles.backgroundImage) {
+            mockupContainer.style.backgroundImage = backgroundStyles.backgroundImage;
+            mockupContainer.style.backgroundSize = backgroundStyles.backgroundSize || 'cover';
+            mockupContainer.style.backgroundPosition = backgroundStyles.backgroundPosition || 'center';
           }
         }
 
         // Handle pattern - render it directly as a background image
         if (backgroundPattern !== 'none') {
+          // First, apply the background color to the container (important for both single and multiple devices)
+          const backgroundStyles = getBackgroundInlineStyle();
+          
+          // Debug logging to see what's happening
+          console.log('Export debug - background state:', background);
+          console.log('Export debug - customBackgroundColor:', customBackgroundColor);
+          console.log('Export debug - backgroundStyles:', backgroundStyles);
+          
+          if (backgroundStyles.backgroundColor) {
+            mockupContainer.style.backgroundColor = backgroundStyles.backgroundColor;
+          }
+          if (backgroundStyles.backgroundImage) {
+            mockupContainer.style.backgroundImage = backgroundStyles.backgroundImage;
+            mockupContainer.style.backgroundSize = backgroundStyles.backgroundSize || 'cover';
+            mockupContainer.style.backgroundPosition = backgroundStyles.backgroundPosition || 'center';
+          }
+          
+          // Force a style recomputation before getting computed styles
+          mockupContainer.offsetHeight;
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
           // Remove any existing pattern overlay
           const patternOverlay = mockupContainer.querySelector('.pattern-overlay') as HTMLElement;
           if (patternOverlay) {
@@ -448,9 +621,40 @@ const Index = () => {
             (svg as SVGElement).style.display = 'none';
           });
           
-          // Get background color
+          // Get background color after we've applied it - ensure we have a valid color
           const computedStyle = window.getComputedStyle(mockupContainer);
-          const bgColor = computedStyle.backgroundColor;
+          let bgColor = backgroundStyles.backgroundColor || computedStyle.backgroundColor || '#ffffff';
+          
+          // Handle gradients - extract a representative color from the gradient
+          if (!backgroundStyles.backgroundColor && backgroundStyles.backgroundImage && backgroundStyles.backgroundImage.includes('gradient')) {
+            // Extract first color from gradient for pattern generation
+            if (background === 'gradient') {
+              bgColor = '#D1FAE5'; // Use the first gradient color (green-100)
+            } else if (background === 'gradient-purple') {
+              bgColor = '#EDE9FE'; // Use the first gradient color (purple-100)
+            }
+          }
+          
+          console.log('Export debug - computed backgroundColor:', computedStyle.backgroundColor);
+          console.log('Export debug - final bgColor before conversion:', bgColor);
+          
+          // Convert RGB format to hex if needed for better compatibility
+          if (bgColor.startsWith('rgb')) {
+            const rgbMatch = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+            if (rgbMatch) {
+              const r = parseInt(rgbMatch[1]).toString(16).padStart(2, '0');
+              const g = parseInt(rgbMatch[2]).toString(16).padStart(2, '0');
+              const b = parseInt(rgbMatch[3]).toString(16).padStart(2, '0');
+              bgColor = `#${r}${g}${b}`;
+            }
+          }
+          
+          // Ensure bgColor is valid RGB format for canvas
+          if (bgColor === 'transparent' || !bgColor || bgColor === 'rgba(0, 0, 0, 0)') {
+            bgColor = '#ffffff';
+          }
+          
+          console.log('Pattern generation - using bgColor:', bgColor); // Debug log
           
           // Generate pattern image with larger dimensions to reduce obvious repetition
           const patternWidth = 2000; // Increased size for better quality
@@ -462,6 +666,7 @@ const Index = () => {
           tempBgElement.style.position = 'absolute';
           tempBgElement.style.inset = '0';
           tempBgElement.style.zIndex = '1'; // Lower z-index to ensure it's behind content
+          tempBgElement.style.backgroundColor = bgColor; // Ensure background color is on the pattern element too
           tempBgElement.style.backgroundImage = `url(${patternUrl})`;
           tempBgElement.style.backgroundRepeat = 'repeat';
           tempBgElement.style.backgroundSize = backgroundPattern === 'waves' ? '100% 100%' : 'auto'; // Scale waves pattern to fill container
@@ -471,58 +676,683 @@ const Index = () => {
           // Insert as first child of mockup container
           mockupContainer.insertBefore(tempBgElement, mockupContainer.firstChild);
           
+          // Ensure device elements have higher z-index than pattern background
+          const deviceElements = mockupContainer.querySelectorAll('.devices-container, .devices-container > div');
+          deviceElements.forEach(el => {
+            (el as HTMLElement).style.zIndex = '10';
+            (el as HTMLElement).style.position = 'relative';
+          });
+          
+          // Also ensure text elements are above pattern - very important for multiple devices
+          const textElements = mockupContainer.querySelectorAll('.text-element');
+          textElements.forEach(el => {
+            (el as HTMLElement).style.zIndex = '9999'; // Higher z-index to ensure visibility
+            (el as HTMLElement).style.position = 'absolute';
+            (el as HTMLElement).style.opacity = '1';
+            (el as HTMLElement).style.visibility = 'visible';
+            (el as HTMLElement).style.pointerEvents = 'none';
+          });
+          
           // Give a moment for the browser to render the new background
           await new Promise(resolve => setTimeout(resolve, 500)); // Increased time for rendering
         }
 
-        // Create a new canvas to render the mockup - with improved settings
-        let canvas = await html2canvas(mockupContainer, {
+        // Give a moment for styles to apply and layout to settle
+        await new Promise(resolve => setTimeout(resolve, 100)); 
+
+        // Prepare the document for better 3D rendering
+        // Force a reflow to ensure all styles are computed correctly AFTER our dynamic changes
+        mockupContainer.getBoundingClientRect();
+        
+        // Removed browser wrapper constraint handling - no longer needed with canvas approach
+        
+        // Wait for layout to settle before capturing (longer wait for large containers)
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        // Force a reflow to ensure all styles are applied
+        mockupContainer.offsetHeight;
+        
+        // CANVAS SIZE APPROACH: Create export with user-specified canvas dimensions
+        
+        console.log('Starting html2canvas capture...', {
+          containerSize: { width: mockupContainer.offsetWidth, height: mockupContainer.offsetHeight }
+        });
+
+        // Create a simplified export container with correct background
+        const exportContainer = document.createElement('div');
+        exportContainer.id = 'export-container';
+        exportContainer.style.position = 'fixed';
+        exportContainer.style.top = '0';
+        exportContainer.style.left = '0';
+        exportContainer.style.visibility = 'visible';
+        exportContainer.style.zIndex = '-9999'; // Behind everything
+        exportContainer.style.pointerEvents = 'none'; // Don't interfere with UI
+        exportContainer.style.width = `${canvasSize.width}px`;
+        exportContainer.style.height = `${canvasSize.height}px`;
+        exportContainer.style.display = 'flex';
+        exportContainer.style.alignItems = 'center';
+        exportContainer.style.justifyContent = 'center';
+        exportContainer.style.flexWrap = 'wrap';
+        exportContainer.style.gap = '20px';
+        exportContainer.style.padding = '40px';
+        
+        // Apply the correct background to match user's choice
+        const backgroundStyles = getBackgroundInlineStyle();
+        if (backgroundStyles.backgroundColor) {
+          exportContainer.style.backgroundColor = backgroundStyles.backgroundColor;
+        } else if (backgroundStyles.backgroundImage) {
+          exportContainer.style.backgroundImage = backgroundStyles.backgroundImage;
+          exportContainer.style.backgroundSize = 'cover';
+          exportContainer.style.backgroundPosition = 'center';
+        } else {
+          exportContainer.style.backgroundColor = '#ffffff';
+        }
+        
+        // Don't apply pattern here - it will be applied later as an overlay
+        
+        // Add to body temporarily
+        document.body.appendChild(exportContainer);
+        
+        // Create simplified device frames for export
+        let modifiedCount = 0;
+        
+        devices.forEach(device => {
+          if (!device.image) return;
+          
+          console.log('Exporting device:', {
+            type: device.type,
+            color: device.color,
+            isPro: device.isPro,
+            rotation: device.rotation
+          });
+          
+          const deviceWrapper = document.createElement('div');
+          deviceWrapper.style.display = 'inline-block';
+          deviceWrapper.style.margin = '10px';
+          
+          if (device.type === 'browser') {
+            // Simple browser frame
+            const browserFrame = document.createElement('div');
+            browserFrame.style.border = '2px solid #d1d5db';
+            browserFrame.style.borderRadius = '8px';
+            browserFrame.style.overflow = 'hidden';
+            browserFrame.style.boxShadow = shadow ? '0 10px 25px rgba(0,0,0,0.1)' : 'none';
+            
+            // Apply 3D rotation if it exists for browser frames too
+            if (device.rotation) {
+              browserFrame.style.transform = `perspective(1000px) rotateX(${device.rotation.x}deg) rotateY(${device.rotation.y}deg)`;
+              browserFrame.style.transformStyle = 'preserve-3d';
+            }
+            
+            const img = document.createElement('img');
+            img.src = device.image;
+            img.style.display = 'block';
+            img.style.maxWidth = '600px';
+            img.style.maxHeight = '400px';
+            img.style.width = 'auto';
+            img.style.height = 'auto';
+            img.crossOrigin = 'anonymous'; // Handle CORS
+            
+            // Add load event listener for debugging
+            img.onload = () => console.log('Browser image loaded:', device.image);
+            img.onerror = (e) => console.error('Browser image failed to load:', device.image, e);
+            
+            browserFrame.appendChild(img);
+            deviceWrapper.appendChild(browserFrame);
+          } else {
+            // Create device frame that matches DeviceFrame.tsx styling
+            const deviceFrame = document.createElement('div');
+            const isPortrait = orientation === 'portrait';
+            
+            // Device-specific dimensions and styling based on DeviceFrame.tsx
+            let frameWidth = 280, frameHeight = 570;
+            let borderRadius = '40px';
+            let screenInset = { top: 48, bottom: 48, left: 12, right: 12 }; // iPhone default
+            
+            if (device.type === 'iphone-pro') {
+              frameWidth = isPortrait ? 280 : 570;
+              frameHeight = isPortrait ? 570 : 280;
+              borderRadius = '40px';
+              screenInset = { top: 48, bottom: 48, left: 12, right: 12 };
+            } else if (device.type === 'iphone') {
+              frameWidth = isPortrait ? 280 : 570;
+              frameHeight = isPortrait ? 570 : 280;
+              borderRadius = '40px';
+              screenInset = { top: 24, bottom: 24, left: 8, right: 8 };
+            } else if (device.type === 'ipad') {
+              frameWidth = isPortrait ? 380 : 540;
+              frameHeight = isPortrait ? 540 : 380;
+              borderRadius = '20px';
+              screenInset = { top: 16, bottom: 16, left: 12, right: 12 };
+            } else if (device.type === 'android') {
+              frameWidth = isPortrait ? 260 : 540;
+              frameHeight = isPortrait ? 540 : 260;
+              borderRadius = '20px';
+              screenInset = { top: 8, bottom: 8, left: 8, right: 8 };
+            } else if (device.type === 'pixel-pro') {
+              frameWidth = isPortrait ? 260 : 550;
+              frameHeight = isPortrait ? 550 : 260;
+              borderRadius = '28px';
+              screenInset = { top: 8, bottom: 8, left: 8, right: 8 };
+            } else if (device.type.includes('macbook')) {
+              frameWidth = 640;
+              frameHeight = 400;
+              borderRadius = device.type === 'macbook-pro' ? '14px' : '10px';
+              screenInset = { top: 0, bottom: 64, left: 12, right: 12 };
+            }
+            
+            // Scale device to fit within export container
+            const maxDeviceWidth = canvasSize.width - 120;
+            const maxDeviceHeight = canvasSize.height - 120;
+            const scaleToFit = Math.min(maxDeviceWidth / frameWidth, maxDeviceHeight / frameHeight, 1);
+            frameWidth *= scaleToFit;
+            frameHeight *= scaleToFit;
+            
+            // Scale insets proportionally
+            Object.keys(screenInset).forEach(key => {
+              screenInset[key] *= scaleToFit;
+            });
+            
+            deviceFrame.style.width = `${frameWidth}px`;
+            deviceFrame.style.height = `${frameHeight}px`;
+            deviceFrame.style.position = 'relative';
+            deviceFrame.style.borderRadius = borderRadius;
+            
+            // Enhanced device colors matching DeviceFrame.tsx
+            if (device.type.includes('pro')) {
+              if (device.color === 'black' || device.color === 'black-titanium') {
+                deviceFrame.style.background = 'linear-gradient(to bottom, #27272a, #18181b)';
+                deviceFrame.style.border = '1px solid rgba(255,255,255,0.05)';
+              } else if (device.color === 'white' || device.color === 'white-titanium') {
+                deviceFrame.style.background = 'linear-gradient(to bottom, #f4f4f5, #e4e4e7)';
+                deviceFrame.style.border = '1px solid rgba(0,0,0,0.1)';
+              } else if (device.color === 'titanium') {
+                deviceFrame.style.background = 'linear-gradient(to bottom, #a3a3a3, #737373, #a3a3a3)';
+                deviceFrame.style.border = '1px solid rgba(0,0,0,0.2)';
+              } else if (device.color === 'blue-titanium') {
+                deviceFrame.style.background = 'linear-gradient(to bottom, #93c5fd, #60a5fa, #93c5fd)';
+                deviceFrame.style.border = '1px solid rgba(0,0,0,0.1)';
+              }
+            } else {
+              if (device.color === 'black') {
+                deviceFrame.style.backgroundColor = '#000';
+                deviceFrame.style.border = '1px solid rgba(255,255,255,0.1)';
+              } else if (device.color === 'white') {
+                deviceFrame.style.backgroundColor = '#fff';
+                deviceFrame.style.border = '1px solid rgba(0,0,0,0.1)';
+              } else {
+                deviceFrame.style.backgroundColor = '#f3f4f6';
+                deviceFrame.style.border = '1px solid rgba(0,0,0,0.1)';
+              }
+            }
+            
+            deviceFrame.style.boxShadow = shadow ? '0 20px 40px rgba(0,0,0,0.15)' : 'none';
+            
+            // Apply 3D rotation if it exists
+            if (device.rotation) {
+              deviceFrame.style.transform = `perspective(1000px) rotateX(${device.rotation.x}deg) rotateY(${device.rotation.y}deg)`;
+              deviceFrame.style.transformStyle = 'preserve-3d';
+            }
+            
+            // Screen area with proper insets
+            const screen = document.createElement('div');
+            screen.style.position = 'absolute';
+            screen.style.top = `${screenInset.top}px`;
+            screen.style.left = `${screenInset.left}px`;
+            screen.style.right = `${screenInset.right}px`;
+            screen.style.bottom = `${screenInset.bottom}px`;
+            screen.style.backgroundColor = '#1f2937';
+            screen.style.borderRadius = device.type === 'android' ? '8px' : device.type === 'pixel-pro' ? '24px' : device.type.includes('iphone') ? '30px' : '8px';
+            screen.style.overflow = 'hidden';
+            screen.style.border = '1px solid #374151';
+            
+            // Screenshot image
+            const img = document.createElement('img');
+            img.src = device.image;
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.objectFit = 'cover';
+            img.style.objectPosition = 'center top';
+            img.style.display = 'block';
+            img.crossOrigin = 'anonymous';
+            
+            img.onload = () => console.log('Device image loaded:', device.image);
+            img.onerror = (e) => console.error('Device image failed to load:', device.image, e);
+            
+            screen.appendChild(img);
+            deviceFrame.appendChild(screen);
+            
+            // Add device-specific elements
+            if (device.type.includes('iphone')) {
+              // Add notch/dynamic island
+              const notch = document.createElement('div');
+              notch.style.position = 'absolute';
+              notch.style.top = device.type === 'iphone-pro' ? `${20 * scaleToFit}px` : `${16 * scaleToFit}px`;
+              notch.style.left = '50%';
+              notch.style.transform = 'translateX(-50%)';
+              notch.style.width = device.type === 'iphone-pro' ? `${75 * scaleToFit}px` : `${80 * scaleToFit}px`;
+              notch.style.height = device.type === 'iphone-pro' ? `${11 * scaleToFit}px` : `${24 * scaleToFit}px`;
+              notch.style.backgroundColor = '#000';
+              notch.style.borderRadius = device.type === 'iphone-pro' ? '10px' : '12px';
+              notch.style.zIndex = '10';
+              deviceFrame.appendChild(notch);
+              
+              // Add side buttons
+              const volumeUp = document.createElement('div');
+              volumeUp.style.position = 'absolute';
+              volumeUp.style.left = '-2px';
+              volumeUp.style.top = `${112 * scaleToFit}px`;
+              volumeUp.style.width = '4px';
+              volumeUp.style.height = `${40 * scaleToFit}px`;
+              volumeUp.style.backgroundColor = device.color === 'black' ? '#333' : '#999';
+              volumeUp.style.borderRadius = '0 2px 2px 0';
+              deviceFrame.appendChild(volumeUp);
+              
+              const volumeDown = document.createElement('div');
+              volumeDown.style.position = 'absolute';
+              volumeDown.style.left = '-2px';
+              volumeDown.style.top = `${160 * scaleToFit}px`;
+              volumeDown.style.width = '4px';
+              volumeDown.style.height = `${56 * scaleToFit}px`;
+              volumeDown.style.backgroundColor = device.color === 'black' ? '#333' : '#999';
+              volumeDown.style.borderRadius = '0 2px 2px 0';
+              deviceFrame.appendChild(volumeDown);
+              
+              const powerButton = document.createElement('div');
+              powerButton.style.position = 'absolute';
+              powerButton.style.right = '-2px';
+              powerButton.style.top = `${112 * scaleToFit}px`;
+              powerButton.style.width = '4px';
+              powerButton.style.height = `${40 * scaleToFit}px`;
+              powerButton.style.backgroundColor = device.color === 'black' ? '#333' : '#999';
+              powerButton.style.borderRadius = '2px 0 0 2px';
+              deviceFrame.appendChild(powerButton);
+            } else if (device.type === 'android') {
+              // Add Android camera notch
+              const notch = document.createElement('div');
+              notch.style.position = 'absolute';
+              notch.style.top = `${12 * scaleToFit}px`;
+              notch.style.left = '50%';
+              notch.style.transform = 'translateX(-50%)';
+              notch.style.width = `${12 * scaleToFit}px`;
+              notch.style.height = `${12 * scaleToFit}px`;
+              notch.style.backgroundColor = '#1f2937';
+              notch.style.borderRadius = '50%';
+              notch.style.zIndex = '10';
+              deviceFrame.appendChild(notch);
+              
+              // Add side buttons
+              const volumeUp = document.createElement('div');
+              volumeUp.style.position = 'absolute';
+              volumeUp.style.right = '-2px';
+              volumeUp.style.top = `${96 * scaleToFit}px`;
+              volumeUp.style.width = '4px';
+              volumeUp.style.height = `${48 * scaleToFit}px`;
+              volumeUp.style.backgroundColor = device.color === 'black' ? '#333' : '#999';
+              volumeUp.style.borderRadius = '2px 0 0 2px';
+              deviceFrame.appendChild(volumeUp);
+              
+              const powerButton = document.createElement('div');
+              powerButton.style.position = 'absolute';
+              powerButton.style.right = '-2px';
+              powerButton.style.top = `${160 * scaleToFit}px`;
+              powerButton.style.width = '4px';
+              powerButton.style.height = `${48 * scaleToFit}px`;
+              powerButton.style.backgroundColor = device.color === 'black' ? '#333' : '#999';
+              powerButton.style.borderRadius = '2px 0 0 2px';
+              deviceFrame.appendChild(powerButton);
+            } else if (device.type === 'pixel-pro') {
+              // Add Pixel Pro camera bar
+              const cameraBar = document.createElement('div');
+              cameraBar.style.position = 'absolute';
+              if (isPortrait) {
+                cameraBar.style.top = `${24 * scaleToFit}px`;
+                cameraBar.style.left = '0';
+                cameraBar.style.right = '0';
+                cameraBar.style.height = `${48 * scaleToFit}px`;
+              } else {
+                cameraBar.style.top = '0';
+                cameraBar.style.bottom = '0';
+                cameraBar.style.left = `${24 * scaleToFit}px`;
+                cameraBar.style.width = `${48 * scaleToFit}px`;
+              }
+              cameraBar.style.backgroundColor = '#1f2937';
+              cameraBar.style.zIndex = '5';
+              deviceFrame.appendChild(cameraBar);
+              
+              // Add camera lenses
+              const camera1 = document.createElement('div');
+              camera1.style.position = 'absolute';
+              if (isPortrait) {
+                camera1.style.top = `${36 * scaleToFit}px`;
+                camera1.style.left = `${48 * scaleToFit}px`;
+              } else {
+                camera1.style.top = `${48 * scaleToFit}px`;
+                camera1.style.left = `${36 * scaleToFit}px`;
+              }
+              camera1.style.width = `${24 * scaleToFit}px`;
+              camera1.style.height = `${24 * scaleToFit}px`;
+              camera1.style.backgroundColor = '#374151';
+              camera1.style.borderRadius = '50%';
+              camera1.style.border = '1px solid #4b5563';
+              deviceFrame.appendChild(camera1);
+              
+              const camera2 = document.createElement('div');
+              camera2.style.position = 'absolute';
+              if (isPortrait) {
+                camera2.style.top = `${36 * scaleToFit}px`;
+                camera2.style.left = `${96 * scaleToFit}px`;
+              } else {
+                camera2.style.top = `${96 * scaleToFit}px`;
+                camera2.style.left = `${36 * scaleToFit}px`;
+              }
+              camera2.style.width = `${24 * scaleToFit}px`;
+              camera2.style.height = `${24 * scaleToFit}px`;
+              camera2.style.backgroundColor = '#374151';
+              camera2.style.borderRadius = '50%';
+              camera2.style.border = '1px solid #4b5563';
+              deviceFrame.appendChild(camera2);
+              
+              // Add side buttons
+              const volumeUp = document.createElement('div');
+              volumeUp.style.position = 'absolute';
+              volumeUp.style.right = '-2px';
+              volumeUp.style.top = `${112 * scaleToFit}px`;
+              volumeUp.style.width = '4px';
+              volumeUp.style.height = `${48 * scaleToFit}px`;
+              volumeUp.style.backgroundColor = device.color === 'black' ? '#333' : '#999';
+              volumeUp.style.borderRadius = '2px 0 0 2px';
+              deviceFrame.appendChild(volumeUp);
+              
+              const powerButton = document.createElement('div');
+              powerButton.style.position = 'absolute';
+              powerButton.style.right = '-2px';
+              powerButton.style.top = `${176 * scaleToFit}px`;
+              powerButton.style.width = '4px';
+              powerButton.style.height = `${48 * scaleToFit}px`;
+              powerButton.style.backgroundColor = device.color === 'black' ? '#333' : '#999';
+              powerButton.style.borderRadius = '2px 0 0 2px';
+              deviceFrame.appendChild(powerButton);
+            }
+            
+            // Add keyboard for MacBooks
+            if (device.type.includes('macbook')) {
+              const keyboard = document.createElement('div');
+              keyboard.style.position = 'absolute';
+              keyboard.style.bottom = '0';
+              keyboard.style.left = '0';
+              keyboard.style.right = '0';
+              keyboard.style.height = `${64 * scaleToFit}px`;
+              keyboard.style.backgroundColor = device.color === 'black' ? '#374151' : '#d1d5db';
+              keyboard.style.borderRadius = device.type === 'macbook-pro' ? '0 0 14px 14px' : '0 0 10px 10px';
+              
+              // Add trackpad
+              const trackpad = document.createElement('div');
+              trackpad.style.position = 'absolute';
+              trackpad.style.bottom = `${16 * scaleToFit}px`;
+              trackpad.style.left = '50%';
+              trackpad.style.transform = 'translateX(-50%)';
+              trackpad.style.width = `${128 * scaleToFit}px`;
+              trackpad.style.height = `${32 * scaleToFit}px`;
+              trackpad.style.backgroundColor = device.color === 'black' ? '#1f2937' : '#9ca3af';
+              trackpad.style.borderRadius = '4px';
+              trackpad.style.border = `1px solid ${device.color === 'black' ? '#4b5563' : '#6b7280'}`;
+              keyboard.appendChild(trackpad);
+              
+              deviceFrame.appendChild(keyboard);
+              
+              // Add MacBook Pro notch if applicable
+              if (device.type === 'macbook-pro') {
+                const macNotch = document.createElement('div');
+                macNotch.style.position = 'absolute';
+                macNotch.style.top = '0';
+                macNotch.style.left = '50%';
+                macNotch.style.transform = 'translateX(-50%)';
+                macNotch.style.width = `${32 * scaleToFit}px`;
+                macNotch.style.height = `${8 * scaleToFit}px`;
+                macNotch.style.backgroundColor = '#1f2937';
+                macNotch.style.borderRadius = '0 0 6px 6px';
+                macNotch.style.zIndex = '10';
+                deviceFrame.appendChild(macNotch);
+              }
+            }
+            
+            deviceWrapper.appendChild(deviceFrame);
+          }
+          
+          exportContainer.appendChild(deviceWrapper);
+          modifiedCount++;
+        });
+        
+        console.log('Modified elements for export:', modifiedCount);
+        console.log('Export container contents:', exportContainer.innerHTML);
+        console.log('Export container dimensions:', {
+          width: exportContainer.offsetWidth,
+          height: exportContainer.offsetHeight,
+          children: exportContainer.children.length
+        });
+
+        // Ensure all images are loaded before capture
+        const images = exportContainer.querySelectorAll('img');
+        const imagePromises = Array.from(images).map(img => {
+          if (img.complete) return Promise.resolve();
+          return new Promise(resolve => {
+            img.onload = resolve;
+            img.onerror = resolve; // Resolve even on error to not block export
+            setTimeout(resolve, 5000); // Timeout after 5 seconds
+          });
+        });
+        
+        await Promise.all(imagePromises);
+        
+        // Wait for layout to settle
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // Temporarily bring to front for capture
+        exportContainer.style.zIndex = '9999';
+
+        // Capture the simplified export container
+        let contentCanvas = await html2canvas(exportContainer, {
           allowTaint: true,
           useCORS: true,
-          scale: 2, // Higher resolution for better quality
-          logging: true, // Enable logging for debugging
-          foreignObjectRendering: false, // Try disabling this as it can cause issues
-          removeContainer: false, // Don't remove the container
-          backgroundColor: null, // Keep background transparency for proper background rendering
-          width: mockupContainer.offsetWidth,
-          height: mockupContainer.offsetHeight,
-          imageTimeout: 0, // No timeout for image loading
+          scale: 2, // High resolution capture
+          logging: false, // Disable verbose logging
+          foreignObjectRendering: true,
+          backgroundColor: null,
+          imageTimeout: 20000, // Longer timeout for images
+          width: exportContainer.offsetWidth,
+          height: exportContainer.offsetHeight,
+          x: 0,
+          y: 0,
+          scrollX: 0,
+          scrollY: 0,
+          windowWidth: window.innerWidth,
+          windowHeight: window.innerHeight,
           ignoreElements: (element) => {
-            // Ignore buttons and UI elements that shouldn't be in the export
             return element.classList.contains('ignore-export') || 
                   element.tagName === 'BUTTON' ||
                   (element.tagName === 'DIV' && element.getAttribute('role') === 'button');
           },
-          onclone: (clonedDoc) => {
-            // Additional preparation for the cloned document that will be rendered
-            const clonedContainer = clonedDoc.getElementById('mockup-container');
-            if (clonedContainer) {
-              // Ensure all content is visible in the clone
-              clonedContainer.style.visibility = 'visible';
-              clonedContainer.style.opacity = '1';
-              
-              // Apply background style directly to the cloned element
-              const computedStyle = window.getComputedStyle(mockupContainer);
-              clonedContainer.style.backgroundColor = computedStyle.backgroundColor;
-              clonedContainer.style.backgroundImage = computedStyle.backgroundImage;
-              clonedContainer.style.backgroundRepeat = computedStyle.backgroundRepeat;
-              clonedContainer.style.backgroundSize = computedStyle.backgroundSize;
-              clonedContainer.style.backgroundPosition = computedStyle.backgroundPosition;
-              
-              // Fix cloned device elements
-              const clonedDevices = clonedContainer.querySelectorAll('.devices-container > div');
-              clonedDevices.forEach(el => {
-                (el as HTMLElement).style.position = 'relative';
-                (el as HTMLElement).style.opacity = '1';
-                (el as HTMLElement).style.visibility = 'visible';
-                (el as HTMLElement).style.zIndex = '10';
-              });
-            }
-          }
+        });
+        
+        // Immediately hide again after capture
+        exportContainer.style.zIndex = '-9999';
+        
+        // Clean up the export container
+        if (exportContainer.parentNode) {
+          exportContainer.parentNode.removeChild(exportContainer);
+        }
+        
+        console.log('html2canvas capture complete:', {
+          canvasSize: { width: contentCanvas.width, height: contentCanvas.height },
+          hasData: contentCanvas.width > 0 && contentCanvas.height > 0
         });
 
+        // Quick test - convert to data URL to see if there's content
+        const testDataUrl = contentCanvas.toDataURL('image/png');
+        console.log('Content canvas data URL length:', testDataUrl.length);
+
+        // Create final canvas with user-specified dimensions
+        const finalCanvas = document.createElement('canvas');
+        finalCanvas.width = canvasSize.width;
+        finalCanvas.height = canvasSize.height;
+        const ctx = finalCanvas.getContext('2d')!;
+        
+        // Apply solid background first
+        if (backgroundStyles.backgroundColor) {
+          ctx.fillStyle = backgroundStyles.backgroundColor;
+          ctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
+        } else if (backgroundStyles.backgroundImage && backgroundStyles.backgroundImage.includes('gradient')) {
+          // Handle gradients by creating a simple gradient
+          if (background === 'gradient') {
+            const gradient = ctx.createLinearGradient(0, 0, canvasSize.width, canvasSize.height);
+            gradient.addColorStop(0, '#D1FAE5'); // green-100
+            gradient.addColorStop(1, '#DBEAFE'); // blue-100
+            ctx.fillStyle = gradient;
+          } else if (background === 'gradient-purple') {
+            const gradient = ctx.createLinearGradient(0, 0, canvasSize.width, canvasSize.height);
+            gradient.addColorStop(0, '#EDE9FE'); // purple-100
+            gradient.addColorStop(1, '#FCE7F3'); // pink-100
+            ctx.fillStyle = gradient;
+          }
+          ctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
+        } else {
+          // Default white background
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
+        }
+
+        // Scale and center the content appropriately for the canvas size
+        // Account for html2canvas scale factor (we used scale: 2)
+        const htmlCanvasScale = 2;
+        const actualContentWidth = contentCanvas.width / htmlCanvasScale;
+        const actualContentHeight = contentCanvas.height / htmlCanvasScale;
+        
+        // Use more of the canvas space - 90% for better utilization
+        const maxContentWidth = canvasSize.width * 0.9;
+        const maxContentHeight = canvasSize.height * 0.9;
+        
+        console.log('Export Debug:', {
+          canvasSize,
+          rawContentSize: { width: contentCanvas.width, height: contentCanvas.height },
+          actualContentSize: { width: actualContentWidth, height: actualContentHeight },
+          maxContentSize: { width: maxContentWidth, height: maxContentHeight }
+        });
+        
+        // Calculate scaling based on actual content size with more aggressive scaling
+        const scaleX = maxContentWidth / actualContentWidth;
+        const scaleY = maxContentHeight / actualContentHeight;
+        
+        // Use the larger scale factor to ensure content fills the space better, but cap at reasonable limits
+        let scale = Math.min(scaleX, scaleY);
+        
+        // Ensure minimum scale to prevent tiny content - at least 0.5x
+        scale = Math.max(scale, 0.5);
+        
+        // Cap maximum scale to prevent overly large content - max 5x
+        scale = Math.min(scale, 5);
+        
+        console.log('Export Scaling:', { 
+          scaleX, 
+          scaleY, 
+          finalScale: scale,
+          beforeMinMax: Math.min(scaleX, scaleY),
+          contentSizeRatio: {
+            widthRatio: actualContentWidth / canvasSize.width,
+            heightRatio: actualContentHeight / canvasSize.height
+          }
+        });
+        
+        // Calculate final content dimensions (scale the original captured canvas)
+        const finalContentWidth = actualContentWidth * scale;
+        const finalContentHeight = actualContentHeight * scale;
+        
+        // Center the scaled content on the canvas
+        const contentX = (canvasSize.width - finalContentWidth) / 2;
+        const contentY = (canvasSize.height - finalContentHeight) / 2;
+        
+        console.log('Export Final:', {
+          finalContentSize: { width: finalContentWidth, height: finalContentHeight },
+          position: { x: contentX, y: contentY }
+        });
+        
+        // Draw the content scaled and centered on the canvas
+        console.log('Drawing content to canvas...', {
+          contentCanvas: contentCanvas,
+          contentCanvasSize: { width: contentCanvas.width, height: contentCanvas.height },
+          drawParams: { x: contentX, y: contentY, width: finalContentWidth, height: finalContentHeight }
+        });
+        
+        ctx.drawImage(contentCanvas, contentX, contentY, finalContentWidth, finalContentHeight);
+        
+        // Apply pattern overlay after content is drawn
+        if (backgroundPattern !== 'none') {
+          const patternBgColor = backgroundStyles.backgroundColor || '#ffffff';
+          const patternCanvas = document.createElement('canvas');
+          const patternSize = 100; // Size of pattern tile
+          patternCanvas.width = patternSize;
+          patternCanvas.height = patternSize;
+          const patternCtx = patternCanvas.getContext('2d')!;
+          
+          // Make pattern tile transparent background
+          patternCtx.clearRect(0, 0, patternSize, patternSize);
+          
+          // Draw pattern overlay only (no background fill)
+          patternCtx.strokeStyle = 'rgba(0, 0, 0, 0.08)';
+          patternCtx.lineWidth = 1;
+          
+          switch (backgroundPattern) {
+            case 'dots':
+              patternCtx.fillStyle = 'rgba(0, 0, 0, 0.06)';
+              for (let x = 0; x < patternSize; x += 20) {
+                for (let y = 0; y < patternSize; y += 20) {
+                  patternCtx.beginPath();
+                  patternCtx.arc(x + 10, y + 10, 1, 0, 2 * Math.PI);
+                  patternCtx.fill();
+                }
+              }
+              break;
+            case 'grid':
+              for (let x = 0; x <= patternSize; x += 20) {
+                patternCtx.beginPath();
+                patternCtx.moveTo(x, 0);
+                patternCtx.lineTo(x, patternSize);
+                patternCtx.stroke();
+              }
+              for (let y = 0; y <= patternSize; y += 20) {
+                patternCtx.beginPath();
+                patternCtx.moveTo(0, y);
+                patternCtx.lineTo(patternSize, y);
+                patternCtx.stroke();
+              }
+              break;
+            case 'lines':
+              for (let i = -patternSize; i < patternSize * 2; i += 8) {
+                patternCtx.beginPath();
+                patternCtx.moveTo(i, 0);
+                patternCtx.lineTo(i + patternSize, patternSize);
+                patternCtx.stroke();
+              }
+              break;
+          }
+          
+          // Create pattern and apply it as overlay to entire canvas
+          const pattern = ctx.createPattern(patternCanvas, 'repeat');
+          if (pattern) {
+            ctx.globalCompositeOperation = 'multiply';
+            ctx.fillStyle = pattern;
+            ctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
+            ctx.globalCompositeOperation = 'source-over'; // Reset to default
+          }
+        }
+        
+        // Verify something was drawn
+        const imageData = ctx.getImageData(0, 0, 100, 100);
+        const hasNonTransparentPixels = imageData.data.some((value, index) => index % 4 === 3 && value > 0);
+        console.log('Canvas has content:', hasNonTransparentPixels);
+
         // Create download link
-        const imageUrl = canvas.toDataURL('image/png');
+        const imageUrl = finalCanvas.toDataURL('image/png');
 
         // Create and click download link
         const a = document.createElement('a');
@@ -563,7 +1393,10 @@ const Index = () => {
           mockupContainer.style.width = originalContainerStyles.width;
           mockupContainer.style.maxWidth = originalContainerStyles.maxWidth;
           mockupContainer.style.height = originalContainerStyles.height;
-          mockupContainer.style.padding = originalContainerStyles.padding;
+          mockupContainer.style.padding = originalContainerStyles.padding; // Restore original padding
+          mockupContainer.style.minWidth = originalContainerStyles.minWidth || 'auto';
+          mockupContainer.style.minHeight = originalContainerStyles.minHeight || 'auto';
+          mockupContainer.style.maxHeight = originalContainerStyles.maxHeight || 'auto';
           mockupContainer.style.display = originalContainerStyles.display;
           mockupContainer.style.alignItems = originalContainerStyles.alignItems;
           mockupContainer.style.justifyContent = originalContainerStyles.justifyContent;
@@ -573,6 +1406,7 @@ const Index = () => {
           mockupContainer.style.backgroundImage = originalContainerStyles.backgroundImage;
           mockupContainer.style.backgroundSize = originalContainerStyles.backgroundSize;
           mockupContainer.style.backgroundColor = originalContainerStyles.backgroundColor;
+          mockupContainer.style.margin = originalContainerStyles.margin || '';
         }
         
         if (deviceContainer) {
@@ -610,13 +1444,36 @@ const Index = () => {
             if (multipleDevices.enabled) {
               (el as HTMLElement).style.transform = `scale(${multipleDevices.scale})`;
             }
+            // Restore original z-index and position
+            (el as HTMLElement).style.zIndex = '';
+            (el as HTMLElement).style.position = '';
           }
+        });
+        
+        // Also restore the devices container z-index and position
+        const devicesContainer = mockupContainer.querySelector('.devices-container') as HTMLElement;
+        if (devicesContainer) {
+          devicesContainer.style.zIndex = '';
+          devicesContainer.style.position = '';
+        }
+        
+        // Restore text element z-index and position
+        const textElements = mockupContainer.querySelectorAll('.text-element');
+        textElements.forEach(el => {
+          (el as HTMLElement).style.zIndex = '';
+          (el as HTMLElement).style.position = '';
+          (el as HTMLElement).style.opacity = '';
+          (el as HTMLElement).style.visibility = '';
+          (el as HTMLElement).style.pointerEvents = '';
         });
         
         // Restore draggable style
         draggableElements.forEach(el => {
           (el as HTMLElement).style.pointerEvents = 'auto';
+          (el as HTMLElement).style.position = '';
         });
+        
+        // Browser constraint restoration removed - no longer needed with canvas approach
       }
     } else {
       // Call backend to generate marketing asset
@@ -846,6 +1703,10 @@ const Index = () => {
     });
   };
 
+  const handleCanvasSizeChange = (size: { width: number; height: number }) => {
+    setCanvasSize(size);
+  };
+
   const getBackgroundInlineStyle = () => {
     // First handle custom color and custom image
     if (background === 'custom-color' && customBackgroundColor) {
@@ -1034,7 +1895,14 @@ const Index = () => {
                   </Button>
                   
                   <div className="mt-6">
-                    <MarketingPreview type={marketingPreview} imageUrl={generatedAssetUrl || ''} />
+                    <MarketingPreview
+                      type={marketingPreview}
+                      imageUrl={generatedAssetUrl}
+                      isLoading={isLoading}
+                      revisedPrompt={revisedPrompt}
+                      onClose={() => setMarketingPreview(null)}
+                      onDownload={handleDownloadImage}
+                    />
                   </div>
                   
                   {generatedAssetUrl && (
@@ -1048,7 +1916,7 @@ const Index = () => {
                 </div>
               ) : (
                 <div className="relative">
-                  {!isLoading && (
+                  {isLoading && (
                     <div className="absolute inset-0 bg-black/70 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-white rounded-lg">
                       <div className="flex flex-col items-center gap-4">
                         <div className="relative">
@@ -1130,6 +1998,7 @@ const Index = () => {
                       {devices.map((device, index) => (
                         <div 
                           key={device.id}
+                          data-device-id={device.id}
                           className={`
                             animate-float relative 
                             ${multipleDevices.enabled ? 
@@ -1153,8 +2022,9 @@ const Index = () => {
                             deviceColor={device.color}
                             orientation={orientation}
                             shadow={shadow}
-                            isPro={device.isPro}
+                            isPro={device.isPro || isPro}
                             rotation={device.rotation}
+                            onRotationChange={(newRotation) => handleRotationChange(device.id, newRotation)}
                           />
                         </div>
                       ))}
@@ -1226,6 +2096,8 @@ const Index = () => {
                   customBackgroundColor={customBackgroundColor}
                   onCustomBackgroundImageUpload={handleCustomBackgroundImageUpload}
                   onCustomBackgroundColorChange={handleCustomBackgroundColorChange}
+                  canvasSize={canvasSize}
+                  onCanvasSizeChange={handleCanvasSizeChange}
                 />
               </div>
               
@@ -1250,6 +2122,57 @@ const Index = () => {
       
       {/* Hidden elements for export */}
       <div id="capture-area" className="hidden"></div>
+
+      {showOpenAIPromptModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-lg">
+            <h3 className="text-xl font-semibold mb-4">Create AI Scene Mockup</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Describe the real-life scene where you want your device to appear. 
+              For example: "iPhone on a wooden desk next to a cup of coffee" or 
+              "Phone in someone's hand at the gym"
+            </p>
+            
+            <textarea
+              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[120px] mb-4"
+              placeholder="Describe the scene for your mockup..."
+              value={openAIPrompt}
+              onChange={(e) => setOpenAIPrompt(e.target.value)}
+            ></textarea>
+            
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowOpenAIPromptModal(false);
+                  setOpenAIPrompt('');
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (openAIPrompt.trim() === '') {
+                    toast({
+                      title: "Empty prompt",
+                      description: "Please enter a scene description",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  
+                  setShowOpenAIPromptModal(false);
+                  // Pass the prompt to the export function
+                  handleExport('openai-mockup-confirmed');
+                }}
+                disabled={openAIPrompt.trim() === ''}
+              >
+                Generate Scene
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

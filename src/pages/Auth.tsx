@@ -16,6 +16,7 @@ const Auth = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [networkStatus, setNetworkStatus] = useState<'online' | 'checking' | 'offline'>('online');
+  const [localLoading, setLocalLoading] = useState(false);
   
   // Check network connection
   React.useEffect(() => {
@@ -62,7 +63,14 @@ const Auth = () => {
       return;
     }
     
-    await signIn(email, password);
+    try {
+      setLocalLoading(true);
+      await signIn(email, password);
+    } catch (error) {
+      console.error('Sign in error:', error);
+    } finally {
+      setLocalLoading(false);
+    }
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -95,7 +103,14 @@ const Auth = () => {
       return;
     }
     
-    await signUp(email, password);
+    try {
+      setLocalLoading(true);
+      await signUp(email, password);
+    } catch (error) {
+      console.error('Sign up error:', error);
+    } finally {
+      setLocalLoading(false);
+    }
   };
 
   return (
@@ -133,8 +148,10 @@ const Auth = () => {
                     placeholder="your@email.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    disabled={isLoading}
+                    disabled={isLoading || localLoading}
                     className="bg-white"
+                    autoComplete="email"
+                    tabIndex={0}
                   />
                 </div>
                 <div className="space-y-2">
@@ -145,8 +162,10 @@ const Auth = () => {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    disabled={isLoading}
+                    disabled={isLoading || localLoading}
                     className="bg-white"
+                    autoComplete="current-password"
+                    tabIndex={0}
                   />
                 </div>
               </CardContent>
@@ -154,9 +173,9 @@ const Auth = () => {
                 <Button 
                   type="submit" 
                   className="w-full bg-mockup-blue hover:bg-blue-600"
-                  disabled={isLoading}
+                  disabled={isLoading || localLoading}
                 >
-                  {isLoading ? "Signing in..." : "Sign In"}
+                  {(isLoading || localLoading) ? "Signing in..." : "Sign In"}
                 </Button>
               </CardFooter>
             </form>
@@ -177,8 +196,10 @@ const Auth = () => {
                     placeholder="your@email.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    disabled={isLoading}
+                    disabled={isLoading || localLoading}
                     className="bg-white"
+                    autoComplete="email"
+                    tabIndex={0}
                   />
                 </div>
                 <div className="space-y-2">
@@ -189,8 +210,10 @@ const Auth = () => {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    disabled={isLoading}
+                    disabled={isLoading || localLoading}
                     className="bg-white"
+                    autoComplete="new-password"
+                    tabIndex={0}
                   />
                   <p className="text-xs text-gray-500">Password must be at least 6 characters</p>
                 </div>
@@ -199,9 +222,9 @@ const Auth = () => {
                 <Button 
                   type="submit" 
                   className="w-full bg-mockup-blue hover:bg-blue-600"
-                  disabled={isLoading}
+                  disabled={isLoading || localLoading}
                 >
-                  {isLoading ? "Creating account..." : "Create Account"}
+                  {(isLoading || localLoading) ? "Creating account..." : "Create Account"}
                 </Button>
               </CardFooter>
             </form>

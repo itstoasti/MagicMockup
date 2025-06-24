@@ -100,6 +100,31 @@
   }
 }
 
+/* 3D rendering styles for proper export */
+.transform-style-3d {
+  transform-style: preserve-3d !important;
+  perspective: 1000px !important;
+  backface-visibility: visible !important;
+  will-change: transform;
+}
+
+[style*="transform: rotateX"], 
+[style*="transform: rotateY"],
+[style*="transform: rotate3d"] {
+  transform-style: preserve-3d !important;
+  perspective: 1000px !important;
+  backface-visibility: visible !important;
+  will-change: transform;
+}
+
+/* Ensure children of 3D transformed elements maintain 3D context */
+.transform-style-3d *, 
+[style*="transform: rotateX"] *, 
+[style*="transform: rotateY"] *,
+[style*="transform: rotate3d"] * {
+  transform-style: preserve-3d !important;
+}
+
 /* Styles for the collapsed sidebar view with multiple devices */
 .collapsed-view {
   display: flex;
@@ -156,3 +181,5 @@
     max-width: 1400px !important;
   }
 }
+
+/* Canvas export approach - no longer need browser constraint overrides */

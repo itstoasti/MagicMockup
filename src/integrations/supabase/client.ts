@@ -8,4 +8,24 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+// Create client with better error handling for offline scenarios
+const supabaseClient = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: {
+    autoRefreshToken: false, // Disable auto refresh to prevent background errors
+    persistSession: true,
+    detectSessionInUrl: false
+  },
+  global: {
+    fetch: (url, options = {}) => {
+      return fetch(url, options).catch((error) => {
+        // Silently handle network errors to prevent console spam
+        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+          return Promise.reject(error);
+        }
+        throw error;
+      });
+    }
+  }
+});
+
+export const supabase = supabaseClient;

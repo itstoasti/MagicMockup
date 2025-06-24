@@ -8,6 +8,7 @@ interface DeviceFrameProps {
   shadow: boolean;
   rotation?: { x: number, y: number };
   isPro?: boolean;
+  onRotationChange?: (rotation: { x: number, y: number }) => void;
 }
 
 const DeviceFrame = ({ 
@@ -17,7 +18,8 @@ const DeviceFrame = ({
   orientation, 
   shadow,
   rotation = { x: 0, y: 0 },
-  isPro = false
+  isPro = false,
+  onRotationChange
 }: DeviceFrameProps) => {
   
   // Define device frame styles based on type and color
@@ -31,6 +33,17 @@ const DeviceFrame = ({
 
     // 3D transform for rotation
     const transform = rotation ? `transform-style-3d rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)` : "";
+    
+    // Ensure CSS transform-style property is set to preserve-3d for proper 3D rendering
+    useEffect(() => {
+      if (rotation && (rotation.x !== 0 || rotation.y !== 0)) {
+        const containerElements = document.querySelectorAll(`[class*="${transform}"]`);
+        containerElements.forEach(el => {
+          (el as HTMLElement).style.transformStyle = 'preserve-3d';
+          (el as HTMLElement).style.perspective = '1000px';
+        });
+      }
+    }, [rotation, transform]);
     
     // Device-specific styles
     switch (deviceType) {
@@ -205,7 +218,7 @@ const DeviceFrame = ({
           frame: `absolute inset-0 rounded-[40px] ${deviceColor === 'black' ? 'bg-black' : deviceColor === 'white' ? 'bg-white' : 'bg-gray-100'} 
                   border border-opacity-10 ${deviceColor === 'black' ? 'border-white/10' : 'border-black/10'} 
                   before:absolute before:inset-0 before:rounded-[40px] before:opacity-30 before:bg-gradient-to-br before:from-white/20 before:to-transparent`,
-          screen: `absolute ${orientation === 'portrait' ? 'top-12 bottom-12 left-3 right-3' : 'top-3 bottom-3 left-12 right-12'} bg-gray-800 rounded-3xl overflow-hidden
+          screen: `absolute ${orientation === 'portrait' ? 'top-6 bottom-6 left-2 right-2' : 'top-2 bottom-2 left-6 right-6'} bg-gray-800 rounded-3xl overflow-hidden
                    shadow-inner border border-gray-700`,
           notch: `absolute ${orientation === 'portrait' ? 'top-4 left-1/2 -translate-x-1/2 w-20 h-6' : 'top-1/2 left-4 -translate-y-1/2 w-6 h-20'} bg-black rounded-full z-10
                   flex items-center justify-center before:absolute before:w-2 before:h-2 before:bg-gray-700 before:rounded-full before:opacity-80`,
@@ -244,6 +257,18 @@ const DeviceFrame = ({
             `absolute ${orientation === 'portrait' ? 'right-[-2px] top-16 h-10 w-1' : 'top-[-2px] left-16 w-10 h-1'} bg-gray-600 rounded-l-sm`
           ]
         };
+      case 'browser':
+        // Browser screenshot display - constrained for UI, but export will use canvas approach
+        return {
+          container: `${baseStyles} ${shadowStyle} ${transform} max-w-xl max-h-96 w-auto h-auto`,
+          frame: `${shadow ? 'rounded-lg shadow-lg' : ''} ${
+            deviceColor === 'light' ? 'border-2 border-gray-300' : 
+            deviceColor === 'dark' ? 'border-2 border-gray-700' : 
+            ''
+          } overflow-hidden w-auto h-auto`,
+          screen: `w-auto h-auto`
+        };
+
       case 'macbook':
         return {
           container: `${baseStyles} ${shadowStyle} ${transform} w-[640px] h-[400px]`,
@@ -278,7 +303,7 @@ const DeviceFrame = ({
         return {
           container: `${baseStyles} ${shadowStyle} ${transform} ${orientation === 'portrait' ? 'w-[280px] h-[570px]' : 'w-[570px] h-[280px]'}`,
           frame: `absolute inset-0 rounded-[40px] ${deviceColor === 'black' ? 'bg-black' : deviceColor === 'white' ? 'bg-white' : 'bg-gray-100'}`,
-          screen: `absolute ${orientation === 'portrait' ? 'top-12 bottom-12 left-3 right-3' : 'top-3 bottom-3 left-12 right-12'} bg-gray-800 rounded-3xl overflow-hidden`,
+          screen: `absolute ${orientation === 'portrait' ? 'top-6 bottom-6 left-2 right-2' : 'top-2 bottom-2 left-6 right-6'} bg-gray-800 rounded-3xl overflow-hidden`,
           notch: `absolute ${orientation === 'portrait' ? 'top-4 left-1/2 -translate-x-1/2 w-20 h-6' : 'top-1/2 left-4 -translate-y-1/2 w-6 h-20'} bg-black rounded-full`
         };
     }
@@ -296,73 +321,105 @@ const DeviceFrame = ({
   }, [rotation.x, rotation.y]);
   
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (!isPro) return;
     setDragging(true);
     setStartX(e.clientX);
     setStartY(e.clientY);
   };
   
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!dragging || !isPro) return;
+    if (!dragging) return;
     
     const deltaX = e.clientX - startX;
     const deltaY = e.clientY - startY;
     
-    setRotate({
+    const newRotation = {
       x: Math.min(Math.max(rotate.x - deltaY * 0.5, -30), 30),
       y: Math.min(Math.max(rotate.y + deltaX * 0.5, -30), 30)
-    });
+    };
+    
+    setRotate(newRotation);
+    
+    // No need to notify parent on every move - will do it on mouse up
+    // to avoid excessive re-renders
     
     setStartX(e.clientX);
     setStartY(e.clientY);
   };
   
   const handleMouseUp = () => {
-    if (!isPro) return;
+    if (!dragging) return;
     setDragging(false);
+    
+    // Notify parent component of rotation change
+    if (onRotationChange) {
+      onRotationChange(rotate);
+    }
   };
   
   const handleDoubleClick = () => {
-    if (!isPro) return;
     // Reset rotation on double click
-    setRotate({ x: 0, y: 0 });
+    const newRotation = { x: 0, y: 0 };
+    setRotate(newRotation);
+    
+    // Notify parent component of rotation change
+    if (onRotationChange) {
+      onRotationChange(newRotation);
+    }
   };
+  
+  // Help ensure 3D transform is applied properly for export
+  useEffect(() => {
+    // Apply transform-style-3d class to ensure proper rendering
+    const allDeviceFrames = document.querySelectorAll(`[class*="${styles.container}"]`);
+    allDeviceFrames.forEach(el => {
+      (el as HTMLElement).classList.add('transform-style-3d');
+      
+      // Ensure all child elements maintain the 3D space
+      const children = (el as HTMLElement).querySelectorAll('*');
+      children.forEach(child => {
+        (child as HTMLElement).style.transformStyle = 'preserve-3d';
+      });
+    });
+  }, [styles.container, rotation]);
   
   return (
     <div 
-      className={styles.container}
+      className={`${styles.container} transform-style-3d`}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       onDoubleClick={handleDoubleClick}
       style={{
-        transform: isPro ? `perspective(1000px) rotateX(${rotate.x}deg) rotateY(${rotate.y}deg)` : '',
-        cursor: isPro ? 'grab' : 'default',
-        transformStyle: 'preserve-3d'
+        transform: `perspective(1000px) rotateX(${rotate.x}deg) rotateY(${rotate.y}deg)`,
+        cursor: 'grab',
+        transformStyle: 'preserve-3d',
+        perspective: '1000px',
+        backfaceVisibility: 'visible',
+        willChange: 'transform'
       }}
     >
-      <div className={styles.frame} style={isPro && deviceType === 'iphone-pro' ? {
+      <div className={styles.frame} style={{
         transformStyle: 'preserve-3d',
         transform: 'translateZ(-2px)'
-      } : {}}></div>
+      }}></div>
       
       {/* Dynamic Island (for iPhone Pro) replaces the notch */}
       {deviceType === 'iphone-pro' ? (
-        <div className={styles.dynamicIsland} style={isPro ? {
+        <div className={styles.dynamicIsland} style={{
           transformStyle: 'preserve-3d',
           transform: 'translateZ(1px)'
-        } : {}}></div>
+        }}></div>
       ) : (
         <div className={styles.notch}></div>
       )}
       
       {/* Pro device specific elements */}
       {deviceType === 'iphone-pro' && (
-        <div className={styles.cameraModule} style={isPro ? {
+        <div className={styles.cameraModule} style={{
           transformStyle: 'preserve-3d',
           transform: 'translateZ(2px)'
-        } : {}}>
+        }}>
           {styles.cameras && styles.cameras.map((cameraStyle, index) => (
             <div key={`camera-${index}`} className={cameraStyle}></div>
           ))}
@@ -390,6 +447,8 @@ const DeviceFrame = ({
         </>
       )}
       
+
+
       {(deviceType === 'macbook' || deviceType === 'macbook-pro') && (
         <>
           <div className={styles.keyboard}></div>
@@ -404,11 +463,30 @@ const DeviceFrame = ({
       
       <div className={styles.screen}>
         {image && (
-          <img 
-            src={image} 
-            alt="Screenshot" 
-            className="w-full h-full object-cover"
-          />
+          deviceType === 'browser' ? (
+            <img 
+              src={image} 
+              alt="Screenshot" 
+              className="block"
+              style={{
+                width: 'auto',
+                height: 'auto'
+              }}
+            />
+          ) : (
+            <div className="w-full h-full relative overflow-hidden">
+              <img 
+                src={image} 
+                alt="Screenshot" 
+                className="absolute inset-0 w-full h-full"
+                style={{
+                  objectFit: 'cover',
+                  objectPosition: 'center top',
+                  display: 'block'
+                }}
+              />
+            </div>
+          )
         )}
         {!image && (
           <div className="w-full h-full flex items-center justify-center bg-gray-700">
